@@ -21,7 +21,9 @@ vi.mock("@/lib/api", async (original) => {
 
 function Sonda() {
   const espacio = useEspacio();
-  return <span data-testid="elegido">{espacio.procesoSeleccionado?.id ?? "(ninguno)"}</span>;
+  return (
+    <span data-testid="elegido">{espacio.procesoSeleccionado?.id ?? "(ninguno)"}</span>
+  );
 }
 
 function montar() {
@@ -99,7 +101,9 @@ describe("vista Buscar", () => {
     const { usuario } = montar();
     await usuario.click(screen.getByRole("button", { name: "Buscar" }));
 
-    await usuario.click(await screen.findByRole("button", { name: "Analizar este proceso" }));
+    await usuario.click(
+      await screen.findByRole("button", { name: "Analizar este proceso" }),
+    );
 
     expect(screen.getByTestId("elegido")).toHaveTextContent("CO1.PCC.1");
     expect(enrutadorDePrueba.push).toHaveBeenCalledWith("/analizar");
@@ -124,8 +128,14 @@ describe("vista Buscar", () => {
       total: 1,
       procesos: [proceso()],
     });
-    vi.mocked(api.priorizarProcesos).mockResolvedValue({ priorizados: [], resumen: "ok" });
-    localStorage.setItem("agente-secop:ia", JSON.stringify({ proveedor: "gemini", modelo: null }));
+    vi.mocked(api.priorizarProcesos).mockResolvedValue({
+      priorizados: [],
+      resumen: "ok",
+    });
+    localStorage.setItem(
+      "agente-secop:ia",
+      JSON.stringify({ proveedor: "gemini", modelo: null }),
+    );
     const { usuario } = montar();
     await usuario.click(screen.getByRole("button", { name: "Buscar" }));
 

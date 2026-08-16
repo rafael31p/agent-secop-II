@@ -34,16 +34,13 @@ export function Pie() {
       {error && (
         <Aviso tipo="error">
           {error} Arráncalo con{" "}
-          <span className="mono">
-            cd backend-quarkus &amp;&amp; ./mvnw quarkus:dev
-          </span>
-          .
+          <span className="mono">cd backend-quarkus &amp;&amp; ./mvnw quarkus:dev</span>.
         </Aviso>
       )}
       <p>
-        Herramienta de apoyo analítico. No sustituye asesoría jurídica ni el estudio
-        de los documentos oficiales publicados en SECOP II. Verifica toda conclusión
-        contra la fuente oficial antes de tomar decisiones contractuales.
+        Herramienta de apoyo analítico. No sustituye asesoría jurídica ni el estudio de
+        los documentos oficiales publicados en SECOP II. Verifica toda conclusión contra
+        la fuente oficial antes de tomar decisiones contractuales.
       </p>
       {salud && (
         <p className="tenue">

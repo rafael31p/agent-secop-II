@@ -178,7 +178,11 @@ export function Consultar() {
           disabled={respondiendo}
         />
         <div className="fila" style={{ marginTop: "0.6rem" }}>
-          <button className="principal" type="submit" disabled={respondiendo || !entrada.trim()}>
+          <button
+            className="principal"
+            type="submit"
+            disabled={respondiendo || !entrada.trim()}
+          >
             Enviar
           </button>
           {respondiendo && (

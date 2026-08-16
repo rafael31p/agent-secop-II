@@ -47,7 +47,10 @@ describe("cliente HTTP", () => {
 
   it("cae al código de estado si el cuerpo del error no es JSON", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response("<html>502 Bad Gateway</html>", { status: 502, statusText: "Bad Gateway" }),
+      new Response("<html>502 Bad Gateway</html>", {
+        status: 502,
+        statusText: "Bad Gateway",
+      }),
     );
 
     const fallo = await api.salud().catch((e) => e);
@@ -134,7 +137,11 @@ describe("chat en streaming", () => {
     vi.mocked(fetch).mockResolvedValue(respuestaSse(["event: fin\ndata: {}\n\n"]));
 
     await chatStream(
-      { mensajes: [{ rol: "user", contenido: "hola" }], proveedor: "gemini", modelo: "x" },
+      {
+        mensajes: [{ rol: "user", contenido: "hola" }],
+        proveedor: "gemini",
+        modelo: "x",
+      },
       () => {},
     );
 

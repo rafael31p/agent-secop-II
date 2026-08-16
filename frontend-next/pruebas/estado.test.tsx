@@ -18,7 +18,9 @@ function Sonda() {
         cargar pliego
       </button>
       <button onClick={() => espacio.fijarAnalisis(analisis())}>fijar análisis</button>
-      <button onClick={() => espacio.seleccionarProceso(proceso())}>elegir proceso</button>
+      <button onClick={() => espacio.seleccionarProceso(proceso())}>
+        elegir proceso
+      </button>
       <button onClick={() => espacio.fijarPerfilProveedor("Fábrica de software")}>
         fijar perfil
       </button>
@@ -85,7 +87,10 @@ describe("espacio de trabajo", () => {
   it("no borra lo guardado durante el primer render", async () => {
     // El servidor renderiza sin almacenamiento; si ese estado vacío se
     // persistiera antes de restaurar, se perdería el trabajo en cada recarga.
-    sessionStorage.setItem(CLAVE_ESPACIO, JSON.stringify({ textoPliego: "Pliego previo" }));
+    sessionStorage.setItem(
+      CLAVE_ESPACIO,
+      JSON.stringify({ textoPliego: "Pliego previo" }),
+    );
 
     montar();
 

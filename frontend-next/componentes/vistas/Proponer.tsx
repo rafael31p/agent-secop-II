@@ -37,7 +37,8 @@ export function Proponer() {
 
   const requisitos = espacio.requisitos;
   const propuesta = espacio.propuesta;
-  const sugerido = espacio.analisis?.objetoNormalizado ?? espacio.procesoSeleccionado?.objeto;
+  const sugerido =
+    espacio.analisis?.objetoNormalizado ?? espacio.procesoSeleccionado?.objeto;
 
   // El objeto se propone a partir del análisis, que puede restaurarse del
   // almacenamiento después de montar esta vista.
@@ -177,12 +178,13 @@ export function Proponer() {
 
         {requisitos.length > 0 ? (
           <Aviso tipo="exito">
-            Se usarán los {requisitos.length} requisitos extraídos en la vista de análisis.
+            Se usarán los {requisitos.length} requisitos extraídos en la vista de
+            análisis.
           </Aviso>
         ) : espacio.textoPliego ? (
           <Aviso tipo="alerta">
-            No hay requisitos estructurados; se usará el texto del pliego directamente. Para
-            mejores resultados, ejecuta primero el análisis de requisitos.
+            No hay requisitos estructurados; se usará el texto del pliego directamente.
+            Para mejores resultados, ejecuta primero el análisis de requisitos.
           </Aviso>
         ) : (
           <Aviso tipo="alerta">
@@ -202,8 +204,8 @@ export function Proponer() {
           </button>
           {!listoParaGenerar && (
             <span className="tenue">
-              Requiere objeto contractual, perfil del oferente ({MINIMO_PERFIL}+ caracteres)
-              y el pliego o sus requisitos.
+              Requiere objeto contractual, perfil del oferente ({MINIMO_PERFIL}+
+              caracteres) y el pliego o sus requisitos.
             </span>
           )}
         </div>

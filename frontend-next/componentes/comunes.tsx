@@ -1,12 +1,7 @@
 /** Componentes de presentación reutilizables. */
 
 import type { ReactNode } from "react";
-import type {
-  Criticidad,
-  EstadoCumplimiento,
-  NivelRiesgo,
-  Veredicto,
-} from "@/lib/tipos";
+import type { Criticidad, EstadoCumplimiento, NivelRiesgo, Veredicto } from "@/lib/tipos";
 
 export function Tarjeta({
   titulo,
@@ -104,12 +99,13 @@ export function Medidor({ valor, etiqueta }: { valor: number; etiqueta?: string 
   );
 }
 
-const VARIANTE_CRITICIDAD: Record<Criticidad, "error" | "alerta" | "acento" | "neutro"> = {
-  obligatorio: "error",
-  ponderable: "alerta",
-  deseable: "acento",
-  informativo: "neutro",
-};
+const VARIANTE_CRITICIDAD: Record<Criticidad, "error" | "alerta" | "acento" | "neutro"> =
+  {
+    obligatorio: "error",
+    ponderable: "alerta",
+    deseable: "acento",
+    informativo: "neutro",
+  };
 
 export function EtiquetaCriticidad({ valor }: { valor: Criticidad }) {
   return <Etiqueta variante={VARIANTE_CRITICIDAD[valor] ?? "neutro"}>{valor}</Etiqueta>;
@@ -147,7 +143,9 @@ const VARIANTE_RIESGO: Record<NivelRiesgo, "error" | "alerta" | "exito"> = {
 };
 
 export function EtiquetaRiesgo({ valor }: { valor: NivelRiesgo }) {
-  return <Etiqueta variante={VARIANTE_RIESGO[valor] ?? "neutro"}>riesgo {valor}</Etiqueta>;
+  return (
+    <Etiqueta variante={VARIANTE_RIESGO[valor] ?? "neutro"}>riesgo {valor}</Etiqueta>
+  );
 }
 
 export const TEXTO_VEREDICTO: Record<Veredicto, string> = {

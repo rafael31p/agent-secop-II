@@ -81,7 +81,8 @@ export function Validar() {
   }
 
   const sinReferencia =
-    espacio.requisitos.length === 0 && espacio.textoPliego.trim().length < MINIMO_CARACTERES;
+    espacio.requisitos.length === 0 &&
+    espacio.textoPliego.trim().length < MINIMO_CARACTERES;
   const listo = texto.trim().length >= MINIMO_CARACTERES && !sinReferencia;
 
   const matrizOrdenada = resultado ? ordenarPorSeveridad(resultado.matriz) : [];

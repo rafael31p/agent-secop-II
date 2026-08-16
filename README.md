@@ -23,25 +23,30 @@ OpenAI, Anthropic, DeepSeek u Ollama local.
 
 ```
 agent-secop-II/
-├── backend-quarkus/    Java 25 + Quarkus + LangChain4j          ← backend actual
+├── backend-quarkus/    Java 25 + Quarkus + LangChain4j
 │   └── src/main/java/co/agentesecop/
 │       ├── api/            Recursos REST y traducción de errores
 │       ├── dominio/        Records: contrato HTTP y esquema para el modelo
 │       ├── ia/             ProveedorIA + las cinco implementaciones
 │       ├── secop/          Cliente Socrata y heurística TI
 │       └── servicio/       Agente y extracción de documentos
-├── frontend-next/      Next.js 16 + React 19 + TypeScript       ← frontend actual
+├── frontend-next/      Next.js 16 + React 19 + TypeScript
 │   ├── app/                Rutas (App Router) y layout
 │   ├── componentes/        Vistas y presentación
 │   ├── lib/                Cliente HTTP, tipos y contextos
 │   └── pruebas/            Vitest + Testing Library
-├── backend/            FastAPI + Python  (versión anterior, se conserva de referencia)
-└── frontend/           React + Vite      (versión anterior, se conserva de referencia)
+└── specs/              Diagnóstico y plan de mejora
 ```
 
-Las dos versiones anteriores siguen funcionando pero **ya no reciben cambios**. Ojo si
-comparas código: el backend Python serializa en `snake_case` y el de Quarkus en
-`camelCase`, así que el frontend viejo no sirve contra el backend nuevo.
+El proyecto nació como FastAPI + React/Vite y se migró a esta pila. Esas versiones
+anteriores se retiraron del tronco pero siguen recuperables:
+
+```bash
+git checkout v0.2.0-legacy -- backend/ frontend/
+```
+
+Ojo si las consultas: el backend Python serializa en `snake_case` y el de Quarkus en
+`camelCase`, así que cada frontend solo funciona contra su backend.
 
 ### Flujo funcional
 

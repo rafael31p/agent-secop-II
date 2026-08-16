@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "formato": "prettier --write .",
+    "formato:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cobertura": "vitest run --coverage"
@@ -25,7 +28,11 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.1",
+    "eslint-config-prettier": "^10.1.8",
     "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

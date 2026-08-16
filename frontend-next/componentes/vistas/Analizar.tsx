@@ -190,7 +190,9 @@ export function Analizar() {
             onClick={analizar}
             disabled={analizando || !suficiente}
             title={
-              suficiente ? undefined : `Se requieren al menos ${MINIMO_CARACTERES} caracteres`
+              suficiente
+                ? undefined
+                : `Se requieren al menos ${MINIMO_CARACTERES} caracteres`
             }
           >
             {analizando ? <Cargando texto="Analizando pliego…" /> : "Analizar requisitos"}

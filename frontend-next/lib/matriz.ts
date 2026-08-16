@@ -13,9 +13,7 @@ export const ORDEN_ESTADOS: EstadoCumplimiento[] = [
 
 /** Ordena por severidad sin alterar el arreglo recibido. */
 export function ordenarPorSeveridad(matriz: ItemCumplimiento[]): ItemCumplimiento[] {
-  return [...matriz].sort(
-    (a, b) => severidad(a.estado) - severidad(b.estado),
-  );
+  return [...matriz].sort((a, b) => severidad(a.estado) - severidad(b.estado));
 }
 
 /** Totales por estado, en orden de severidad y omitiendo los que no aparecen. */

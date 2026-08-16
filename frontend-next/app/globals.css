@@ -48,7 +48,12 @@ body {
   background: var(--fondo);
   color: var(--texto);
   font-family:
-    "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   font-size: 15px;
   line-height: 1.55;
 }

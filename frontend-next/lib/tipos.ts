@@ -9,26 +9,14 @@
 export type Criticidad = "obligatorio" | "ponderable" | "deseable" | "informativo";
 
 export type EstadoCumplimiento =
-  | "cumple"
-  | "cumple_parcial"
-  | "no_cumple"
-  | "no_evaluable";
+  "cumple" | "cumple_parcial" | "no_cumple" | "no_evaluable";
 
 export type NivelRiesgo = "alto" | "medio" | "bajo";
 
 export type TipoRiesgo =
-  | "tecnico"
-  | "juridico"
-  | "financiero"
-  | "operativo"
-  | "cronograma"
-  | "competencia";
+  "tecnico" | "juridico" | "financiero" | "operativo" | "cronograma" | "competencia";
 
-export type Veredicto =
-  | "apta"
-  | "apta_con_ajustes"
-  | "riesgo_de_rechazo"
-  | "no_apta";
+export type Veredicto = "apta" | "apta_con_ajustes" | "riesgo_de_rechazo" | "no_apta";
 
 /**
  * Proveedor y modelo elegidos para una petición. Ambos opcionales: si van nulos,

@@ -95,9 +95,7 @@ export function SelectorIA() {
           }}
         >
           <option value="">
-            {elegido
-              ? `Predeterminado (${elegido.modeloPorDefecto})`
-              : "Predeterminado"}
+            {elegido ? `Predeterminado (${elegido.modeloPorDefecto})` : "Predeterminado"}
           </option>
           {sugeridos.map((modelo) => (
             <option key={modelo} value={modelo}>
@@ -127,8 +125,8 @@ export function SelectorIA() {
 
       {!ia.hayProveedorConfigurado && (
         <Aviso tipo="alerta">
-          Ningún proveedor tiene credenciales. La búsqueda en SECOP II funciona,
-          pero el análisis, la generación y la validación responderán 503.
+          Ningún proveedor tiene credenciales. La búsqueda en SECOP II funciona, pero el
+          análisis, la generación y la validación responderán 503.
         </Aviso>
       )}
     </div>

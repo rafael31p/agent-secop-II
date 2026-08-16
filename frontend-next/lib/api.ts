@@ -103,24 +103,28 @@ export const api = {
   obtenerProceso: (id: string) =>
     pedir<ProcesoResumen>(`/api/procesos/${encodeURIComponent(id)}`),
 
-  priorizarProcesos: (cuerpo: {
-    procesos: ProcesoResumen[];
-    perfilProveedor?: string | null;
-    maximo?: number;
-  } & SeleccionIA) =>
+  priorizarProcesos: (
+    cuerpo: {
+      procesos: ProcesoResumen[];
+      perfilProveedor?: string | null;
+      maximo?: number;
+    } & SeleccionIA,
+  ) =>
     pedir<RespuestaRelevancia>("/api/procesos/relevancia-ti", {
       method: "POST",
       body: JSON.stringify(cuerpo),
     }),
 
-  analizarRequisitos: (cuerpo: {
-    textoPliego: string;
-    objetoContractual?: string | null;
-    entidad?: string | null;
-    modalidad?: string | null;
-    valorEstimado?: number | null;
-    contextoProveedor?: string | null;
-  } & SeleccionIA) =>
+  analizarRequisitos: (
+    cuerpo: {
+      textoPliego: string;
+      objetoContractual?: string | null;
+      entidad?: string | null;
+      modalidad?: string | null;
+      valorEstimado?: number | null;
+      contextoProveedor?: string | null;
+    } & SeleccionIA,
+  ) =>
     pedir<RespuestaAnalisis>("/api/analisis/requisitos", {
       method: "POST",
       body: JSON.stringify(cuerpo),
@@ -135,27 +139,31 @@ export const api = {
     });
   },
 
-  generarPropuesta: (cuerpo: {
-    objetoContractual: string;
-    perfilProveedor: string;
-    requisitos?: RequisitoTecnico[];
-    textoPliego?: string | null;
-    entidad?: string | null;
-    valorEstimado?: number | null;
-    plazoMeses?: number | null;
-    enfasis?: string[];
-  } & SeleccionIA) =>
+  generarPropuesta: (
+    cuerpo: {
+      objetoContractual: string;
+      perfilProveedor: string;
+      requisitos?: RequisitoTecnico[];
+      textoPliego?: string | null;
+      entidad?: string | null;
+      valorEstimado?: number | null;
+      plazoMeses?: number | null;
+      enfasis?: string[];
+    } & SeleccionIA,
+  ) =>
     pedir<RespuestaPropuesta>("/api/propuestas/generar", {
       method: "POST",
       body: JSON.stringify(cuerpo),
     }),
 
-  validarPropuesta: (cuerpo: {
-    textoPropuesta: string;
-    requisitos?: RequisitoTecnico[];
-    textoPliego?: string | null;
-    objetoContractual?: string | null;
-  } & SeleccionIA) =>
+  validarPropuesta: (
+    cuerpo: {
+      textoPropuesta: string;
+      requisitos?: RequisitoTecnico[];
+      textoPliego?: string | null;
+      objetoContractual?: string | null;
+    } & SeleccionIA,
+  ) =>
     pedir<RespuestaValidacion>("/api/propuestas/validar", {
       method: "POST",
       body: JSON.stringify(cuerpo),

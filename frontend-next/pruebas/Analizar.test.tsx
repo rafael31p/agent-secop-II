@@ -39,7 +39,10 @@ describe("vista Analizar", () => {
   });
 
   it("envía el pliego con los nombres de campo del backend Quarkus", async () => {
-    localStorage.setItem("agente-secop:ia", JSON.stringify({ proveedor: "gemini", modelo: null }));
+    localStorage.setItem(
+      "agente-secop:ia",
+      JSON.stringify({ proveedor: "gemini", modelo: null }),
+    );
     const { usuario } = renderizar(<Analizar />);
 
     await usuario.type(screen.getByLabelText(/Texto del pliego/), PLIEGO);
@@ -76,7 +79,9 @@ describe("vista Analizar", () => {
     await usuario.type(screen.getByLabelText(/Texto del pliego/), PLIEGO);
     await usuario.click(screen.getByRole("button", { name: "Analizar requisitos" }));
 
-    await usuario.click(await screen.findByRole("button", { name: "Generar propuesta →" }));
+    await usuario.click(
+      await screen.findByRole("button", { name: "Generar propuesta →" }),
+    );
 
     expect(enrutadorDePrueba.push).toHaveBeenCalledWith("/proponer");
   });

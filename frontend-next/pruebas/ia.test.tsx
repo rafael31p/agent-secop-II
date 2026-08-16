@@ -108,7 +108,9 @@ describe("selección de proveedor y modelo", () => {
     montar();
 
     await waitFor(() =>
-      expect(screen.getByTestId("seleccion")).toHaveTextContent("gemini/gemini-3.5-flash"),
+      expect(screen.getByTestId("seleccion")).toHaveTextContent(
+        "gemini/gemini-3.5-flash",
+      ),
     );
   });
 
@@ -120,7 +122,9 @@ describe("selección de proveedor y modelo", () => {
     montar();
 
     await waitFor(() =>
-      expect(screen.getByTestId("seleccion")).toHaveTextContent("(servidor)/(por defecto)"),
+      expect(screen.getByTestId("seleccion")).toHaveTextContent(
+        "(servidor)/(por defecto)",
+      ),
     );
     expect(localStorage.getItem(CLAVE_IA)).toBeNull();
   });

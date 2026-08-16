@@ -45,7 +45,10 @@ export function Buscar() {
   const [priorizando, setPriorizando] = useState(false);
   const [errorIA, setErrorIA] = useState<string | null>(null);
 
-  function actualizar<C extends keyof FiltroProcesos>(campo: C, valor: FiltroProcesos[C]) {
+  function actualizar<C extends keyof FiltroProcesos>(
+    campo: C,
+    valor: FiltroProcesos[C],
+  ) {
     setFiltro((previo) => ({ ...previo, [campo]: valor }));
   }
 
@@ -262,7 +265,9 @@ export function Buscar() {
                         </td>
                         <td>
                           <Etiqueta
-                            variante={item.categoriaTi === "No es TI" ? "neutro" : "acento"}
+                            variante={
+                              item.categoriaTi === "No es TI" ? "neutro" : "acento"
+                            }
                           >
                             {item.categoriaTi}
                           </Etiqueta>
@@ -325,7 +330,10 @@ function FilaProceso({
   return (
     <article className={`proceso${seleccionado ? " seleccionado" : ""}`}>
       <div className="proceso-meta">
-        <Etiqueta variante={puntaje >= 20 ? "acento" : "neutro"} titulo="Heurística local">
+        <Etiqueta
+          variante={puntaje >= 20 ? "acento" : "neutro"}
+          titulo="Heurística local"
+        >
           TI {puntaje}
         </Etiqueta>
         {proceso.modalidad && <Etiqueta>{proceso.modalidad}</Etiqueta>}
@@ -356,12 +364,19 @@ function FilaProceso({
           Analizar este proceso
         </button>
         {proceso.url && (
-          <a className="boton" href={proceso.url} target="_blank" rel="noreferrer noopener">
+          <a
+            className="boton"
+            href={proceso.url}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
             Ver en SECOP ↗
           </a>
         )}
         {proceso.senalesTi.length > 0 && (
-          <span className="tenue">Señales: {proceso.senalesTi.slice(0, 6).join(", ")}</span>
+          <span className="tenue">
+            Señales: {proceso.senalesTi.slice(0, 6).join(", ")}
+          </span>
         )}
       </div>
     </article>

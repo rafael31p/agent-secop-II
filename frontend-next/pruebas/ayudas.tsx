@@ -78,7 +78,9 @@ export function proceso(sobrescribir: Partial<ProcesoResumen> = {}): ProcesoResu
   };
 }
 
-export function requisito(sobrescribir: Partial<RequisitoTecnico> = {}): RequisitoTecnico {
+export function requisito(
+  sobrescribir: Partial<RequisitoTecnico> = {},
+): RequisitoTecnico {
   return {
     id: "RT-01",
     categoria: "Arquitectura",
@@ -91,7 +93,9 @@ export function requisito(sobrescribir: Partial<RequisitoTecnico> = {}): Requisi
   };
 }
 
-export function analisis(sobrescribir: Partial<RespuestaAnalisis> = {}): RespuestaAnalisis {
+export function analisis(
+  sobrescribir: Partial<RespuestaAnalisis> = {},
+): RespuestaAnalisis {
   return {
     resumenEjecutivo: "Proceso de desarrollo a la medida.",
     objetoNormalizado: "Portal ciudadano",
