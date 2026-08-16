@@ -22,23 +22,15 @@ import com.tngtech.archunit.library.freeze.FreezingArchRule;
  * quedaría rota durante las 8–12 jornadas de la fase 2, y una compilación rota de forma
  * permanente es una que se ignora.
  *
- * <h2>Dos juegos de reglas, a propósito</h2>
+ * <h2>Qué queda congelado</h2>
  *
- * <p>La fase 2 está en curso, así que conviven la estructura vieja y la nueva. Se vigilan
- * de forma distinta:
+ * <p>Ya solo una regla: {@code servicio → adaptadores}, con 78 entradas.
+ * {@code AgenteSecop} recibe los DTO de solicitud HTTP como parámetros e inyecta clases
+ * concretas del adaptador de salida. Lo paga el punto 2.6 del plan, cuando los casos de
+ * uso reciban comandos y dependan de puertos.
  *
- * <ul>
- *   <li><b>{@code domain} —la nueva— con reglas sin congelar.</b> Nace limpia y cada tipo
- *       que se traslade allí entra por esa puerta: si arrastra una anotación de framework,
- *       la compilación falla en el acto.
- *   <li><b>{@code dominio} y {@code servicio} —las viejas— con reglas congeladas.</b>
- *       Admiten la deuda que ya existía, que no puede crecer y va bajando conforme la
- *       fase 2 traslada tipos. La correspondencia con la estructura de destino es
- *       {@code dominio → domain}, {@code servicio → application} y
- *       {@code api, ia, secop, config → adapter}.
- * </ul>
- *
- * <p>Cuando no quede nada en los paquetes viejos, sus reglas y el almacén desaparecen.
+ * <p>Las reglas del dominio ya <strong>no</strong> están congeladas: no admiten ni una
+ * infracción. Es lo que hace que el trabajo hecho no se pueda deshacer por descuido.
  */
 @AnalyzeClasses(
         packages = "co.agentesecop",
@@ -69,12 +61,12 @@ class ReglaDeDependenciasTest {
     };
 
     /**
-     * El dominio nuevo nace puro y <strong>no se congela</strong>.
+     * El dominio es puro, y esta regla <strong>no está congelada</strong>: no admite ni
+     * una infracción.
      *
-     * <p>Es la diferencia importante respecto a las reglas de abajo: aquellas admiten la
-     * deuda que ya existía, esta no admite ninguna. Cada tipo que la fase 2 traslade a
-     * {@code domain} entra por esta puerta, y si trae una anotación de framework encima,
-     * la compilación falla en el acto en lugar de sumarse a una lista.
+     * <p>Estuvo congelada mientras existió el paquete {@code dominio}, con 459 entradas.
+     * Se pagó entera al trasladar los tipos a {@code domain} sin anotaciones de framework
+     * y separar el contrato HTTP en {@code adapter.in.rest.dto}.
      */
     @ArchTest
     static final ArchRule elDominioNuevoEsPuro = noClasses()
@@ -91,31 +83,6 @@ class ReglaDeDependenciasTest {
                     "..adapter..", "..application..", "..dominio..",
                     "..api..", "..ia..", "..secop..", "..servicio..", "..config..")
             .because("las dependencias apuntan hacia adentro (SPEC-BE-01 §2)");
-
-    /**
-     * El núcleo no depende de ningún framework.
-     *
-     * <p>Hoy se incumple: los cuatro archivos de {@code dominio} llevan anotaciones de
-     * Jackson, de Bean Validation y de OpenAPI, porque los mismos records sirven de
-     * contrato HTTP y de esquema para el modelo. Fue una decisión razonable mientras las
-     * dos representaciones fueron idénticas; dejó de serlo cuando apareció
-     * {@code EsquemasJson}, que existe precisamente porque ya no coinciden.
-     */
-    @ArchTest
-    static final ArchRule elDominioNoConoceFrameworks = FreezingArchRule.freeze(
-            noClasses()
-                    .that().resideInAPackage("..dominio..")
-                    .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORKS)
-                    .because("el núcleo de contratación pública debe compilar sin "
-                            + "bibliotecas de serialización ni de HTTP (SPEC-BE-01 §1)"));
-
-    /** El núcleo tampoco conoce los paquetes que lo rodean. */
-    @ArchTest
-    static final ArchRule elDominioNoConoceLosAdaptadores = FreezingArchRule.freeze(
-            noClasses()
-                    .that().resideInAPackage("..dominio..")
-                    .should().dependOnClassesThat().resideInAnyPackage(ADAPTADORES)
-                    .because("las dependencias apuntan hacia adentro (SPEC-BE-01 §2)"));
 
     /**
      * Los casos de uso no dependen de adaptadores concretos.

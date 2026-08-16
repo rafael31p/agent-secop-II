@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import co.agentesecop.PerfilSinCredenciales;
-import co.agentesecop.dominio.Analisis.RequisitoTecnico;
-import co.agentesecop.dominio.Propuestas.ItemCumplimiento;
+import co.agentesecop.domain.model.tender.RequisitoTecnico;
+import co.agentesecop.domain.model.proposal.ItemCumplimiento;
 import co.agentesecop.domain.model.proposal.EstadoCumplimiento;
 import co.agentesecop.domain.model.proposal.Veredicto;
 import co.agentesecop.domain.model.tender.Criticidad;

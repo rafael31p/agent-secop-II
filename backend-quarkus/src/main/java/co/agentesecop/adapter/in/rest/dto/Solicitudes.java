@@ -1,8 +1,8 @@
 package co.agentesecop.adapter.in.rest.dto;
 
+import co.agentesecop.domain.model.procurement.ProcesoDeContratacion;
+import co.agentesecop.domain.model.tender.RequisitoTecnico;
 import co.agentesecop.domain.shared.Listas;
-import co.agentesecop.dominio.Analisis.RequisitoTecnico;
-import co.agentesecop.dominio.Secop;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -176,7 +176,7 @@ public final class Solicitudes {
     public record SolicitudRelevancia(
             @NotEmpty(message = "Envía al menos un proceso para priorizar.")
             @Size(max = 100, message = "Como máximo 100 procesos por petición.")
-            List<Secop.ProcesoResumen> procesos,
+            List<ProcesoDeContratacion> procesos,
             @Schema(description = "Capacidades del proveedor, para priorizar por encaje.")
             @Size(max = 20_000) String perfilProveedor,
             @Min(1) @Max(50) Integer maximo,

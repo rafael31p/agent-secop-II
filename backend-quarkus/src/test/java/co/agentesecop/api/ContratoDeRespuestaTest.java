@@ -6,15 +6,15 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 import co.agentesecop.PerfilSinCredenciales;
-import co.agentesecop.dominio.Analisis.RequisitoTecnico;
-import co.agentesecop.dominio.Analisis.RespuestaAnalisis;
-import co.agentesecop.dominio.Analisis.RiesgoDetectado;
-import co.agentesecop.dominio.Propuestas.ItemCumplimiento;
-import co.agentesecop.dominio.Propuestas.ProcesoPriorizado;
-import co.agentesecop.dominio.Propuestas.RespuestaPropuesta;
-import co.agentesecop.dominio.Propuestas.RespuestaRelevancia;
-import co.agentesecop.dominio.Propuestas.RespuestaValidacion;
-import co.agentesecop.dominio.Propuestas.SeccionPropuesta;
+import co.agentesecop.domain.model.tender.RequisitoTecnico;
+import co.agentesecop.domain.model.tender.AnalisisDePliego;
+import co.agentesecop.domain.model.tender.RiesgoDetectado;
+import co.agentesecop.domain.model.proposal.ItemCumplimiento;
+import co.agentesecop.domain.model.proposal.ProcesoPriorizado;
+import co.agentesecop.domain.model.proposal.Propuesta;
+import co.agentesecop.domain.model.proposal.Priorizacion;
+import co.agentesecop.domain.model.proposal.InformeDeCumplimiento;
+import co.agentesecop.domain.model.proposal.SeccionPropuesta;
 import co.agentesecop.domain.model.proposal.EstadoCumplimiento;
 import co.agentesecop.domain.model.proposal.Veredicto;
 import co.agentesecop.domain.model.tender.Criticidad;
@@ -61,7 +61,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("El análisis conserva los nombres de campo y los códigos de enumeración")
     void contratoDelAnalisis() {
-        Mockito.when(agente.analizarRequisitos(Mockito.any())).thenReturn(new RespuestaAnalisis(
+        Mockito.when(agente.analizarRequisitos(Mockito.any())).thenReturn(new AnalisisDePliego(
                 "Resumen ejecutivo",
                 "Objeto normalizado",
                 List.of(new RequisitoTecnico("RT-01", "Seguridad", "Cifrado en reposo",
@@ -102,7 +102,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("Una lista ausente sale como lista vacía, nunca como null")
     void listasNuncaNulas() {
-        Mockito.when(agente.analizarRequisitos(Mockito.any())).thenReturn(new RespuestaAnalisis(
+        Mockito.when(agente.analizarRequisitos(Mockito.any())).thenReturn(new AnalisisDePliego(
                 "r", null, null, null, null, null, null, null, "rec"));
 
         given().contentType(ContentType.JSON)
@@ -117,7 +117,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("La propuesta conserva sus nombres de campo")
     void contratoDeLaPropuesta() {
-        Mockito.when(agente.generarPropuesta(Mockito.any())).thenReturn(new RespuestaPropuesta(
+        Mockito.when(agente.generarPropuesta(Mockito.any())).thenReturn(new Propuesta(
                 "Título",
                 "Resumen",
                 List.of(new SeccionPropuesta("Sección", "Contenido", List.of("RT-01"))),
@@ -145,7 +145,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("La validación conserva sus nombres de campo y su veredicto")
     void contratoDeLaValidacion() {
-        Mockito.when(agente.validarPropuesta(Mockito.any())).thenReturn(new RespuestaValidacion(
+        Mockito.when(agente.validarPropuesta(Mockito.any())).thenReturn(new InformeDeCumplimiento(
                 87,
                 Veredicto.APTA_CON_AJUSTES,
                 "Resumen",
@@ -177,7 +177,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("La priorización conserva sus nombres de campo")
     void contratoDeLaPriorizacion() {
-        Mockito.when(agente.priorizarProcesos(Mockito.any())).thenReturn(new RespuestaRelevancia(
+        Mockito.when(agente.priorizarProcesos(Mockito.any())).thenReturn(new Priorizacion(
                 List.of(new ProcesoPriorizado("CO1", "Objeto", "Entidad", 1000.0, 90,
                         "Desarrollo de software", "Justificación", "Encaje",
                         List.of("Bandera"))),

@@ -1,17 +1,14 @@
-package co.agentesecop.dominio;
+package co.agentesecop.adapter.in.rest.dto;
 
-import co.agentesecop.domain.shared.Listas;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/** Modelos de los procesos de contratación publicados en SECOP II. */
-public final class Secop {
+/** Contrato HTTP de los procesos de SECOP II. Ver {@link AnalisisDto}. */
+public final class ProcesosDto {
 
-    private Secop() {}
+    private ProcesosDto() {}
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ProcesoResumen(
+    public record ProcesoResumenDto(
             String id,
             String numeroProceso,
             String entidad,
@@ -37,26 +34,15 @@ public final class Secop {
             @Schema(description = "0-100. Heurística local por palabras clave, no una "
                     + "clasificación del modelo.")
             Integer scoreTi,
-            List<String> senalesTi) {
-
-        public ProcesoResumen {
-            senalesTi = Listas.copiaOVacia(senalesTi);
-        }
-    }
+            List<String> senalesTi) {}
 
     public record RespuestaProcesos(
             int total,
-            List<ProcesoResumen> procesos,
+            List<ProcesoResumenDto> procesos,
             String dataset,
             @Schema(description = "Avisos sobre la consulta: filtros ignorados, "
                     + "degradaciones o errores de la fuente.")
-            List<String> advertencias) {
-
-        public RespuestaProcesos {
-            procesos = Listas.copiaOVacia(procesos);
-            advertencias = Listas.copiaOVacia(advertencias);
-        }
-    }
+            List<String> advertencias) {}
 
     public record RespuestaDocumento(
             String nombreArchivo,

@@ -3,10 +3,10 @@ package co.agentesecop.ia;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import co.agentesecop.dominio.Analisis.RespuestaAnalisis;
-import co.agentesecop.dominio.Propuestas.RespuestaPropuesta;
-import co.agentesecop.dominio.Propuestas.RespuestaRelevancia;
-import co.agentesecop.dominio.Propuestas.RespuestaValidacion;
+import co.agentesecop.domain.model.tender.AnalisisDePliego;
+import co.agentesecop.domain.model.proposal.Propuesta;
+import co.agentesecop.domain.model.proposal.Priorizacion;
+import co.agentesecop.domain.model.proposal.InformeDeCumplimiento;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchema;
@@ -29,10 +29,10 @@ class EsquemaJsonTest {
 
     @ParameterizedTest(name = "{0} produce un esquema derivable")
     @ValueSource(classes = {
-        RespuestaAnalisis.class,
-        RespuestaPropuesta.class,
-        RespuestaValidacion.class,
-        RespuestaRelevancia.class
+        AnalisisDePliego.class,
+        Propuesta.class,
+        InformeDeCumplimiento.class,
+        Priorizacion.class
     })
     @DisplayName("Todos los tipos de salida se convierten a esquema")
     void esquemaDerivable(Class<?> tipo) {
@@ -46,7 +46,7 @@ class EsquemaJsonTest {
     @Test
     @DisplayName("El esquema del análisis exige los campos que dan valor al resultado")
     void camposObligatoriosDelAnalisis() {
-        var raiz = (JsonObjectSchema) EsquemasJson.exigente(RespuestaAnalisis.class)
+        var raiz = (JsonObjectSchema) EsquemasJson.exigente(AnalisisDePliego.class)
                 .orElseThrow()
                 .rootElement();
 
@@ -65,7 +65,7 @@ class EsquemaJsonTest {
     @Test
     @DisplayName("La lista de requisitos describe la estructura de cada elemento")
     void estructuraDeCadaRequisito() {
-        var raiz = (JsonObjectSchema) EsquemasJson.exigente(RespuestaAnalisis.class)
+        var raiz = (JsonObjectSchema) EsquemasJson.exigente(AnalisisDePliego.class)
                 .orElseThrow()
                 .rootElement();
 
@@ -83,7 +83,7 @@ class EsquemaJsonTest {
     @Test
     @DisplayName("La matriz de validación exige estado y criticidad por ítem")
     void estructuraDeLaMatriz() {
-        var raiz = (JsonObjectSchema) EsquemasJson.exigente(RespuestaValidacion.class)
+        var raiz = (JsonObjectSchema) EsquemasJson.exigente(InformeDeCumplimiento.class)
                 .orElseThrow()
                 .rootElement();
 

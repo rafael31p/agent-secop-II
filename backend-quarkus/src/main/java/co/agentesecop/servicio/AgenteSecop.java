@@ -1,10 +1,10 @@
 package co.agentesecop.servicio;
 
-import co.agentesecop.dominio.Analisis.RequisitoTecnico;
-import co.agentesecop.dominio.Analisis.RespuestaAnalisis;
-import co.agentesecop.dominio.Propuestas.RespuestaPropuesta;
-import co.agentesecop.dominio.Propuestas.RespuestaRelevancia;
-import co.agentesecop.dominio.Propuestas.RespuestaValidacion;
+import co.agentesecop.domain.model.tender.RequisitoTecnico;
+import co.agentesecop.domain.model.tender.AnalisisDePliego;
+import co.agentesecop.domain.model.proposal.Propuesta;
+import co.agentesecop.domain.model.proposal.Priorizacion;
+import co.agentesecop.domain.model.proposal.InformeDeCumplimiento;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudAnalisis;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudChat;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudPropuesta;
@@ -42,7 +42,7 @@ public class AgenteSecop {
 
     // ------------------------------------------------------------------- análisis
 
-    public RespuestaAnalisis analizarRequisitos(SolicitudAnalisis solicitud) {
+    public AnalisisDePliego analizarRequisitos(SolicitudAnalisis solicitud) {
         StringBuilder contenido = new StringBuilder("# Material del proceso a analizar\n\n");
         agregarSi(contenido, "Entidad", solicitud.entidad());
         agregarSi(contenido, "Objeto contractual", solicitud.objetoContractual());
@@ -64,12 +64,12 @@ public class AgenteSecop {
                         sistema(Prompts.INSTRUCCION_ANALISIS),
                         contenido.toString(),
                         solicitud.modelo()),
-                RespuestaAnalisis.class);
+                AnalisisDePliego.class);
     }
 
     // ------------------------------------------------------------------ propuesta
 
-    public RespuestaPropuesta generarPropuesta(SolicitudPropuesta solicitud) {
+    public Propuesta generarPropuesta(SolicitudPropuesta solicitud) {
         if (solicitud.sinReferencia()) {
             throw new ErroresIA.PeticionInvalida(
                     "Envía requisitos estructurados o el texto del pliego; sin al menos uno "
@@ -115,12 +115,12 @@ public class AgenteSecop {
                         sistema(Prompts.INSTRUCCION_PROPUESTA),
                         contenido.toString(),
                         solicitud.modelo()),
-                RespuestaPropuesta.class);
+                Propuesta.class);
     }
 
     // ----------------------------------------------------------------- validación
 
-    public RespuestaValidacion validarPropuesta(SolicitudValidacion solicitud) {
+    public InformeDeCumplimiento validarPropuesta(SolicitudValidacion solicitud) {
         List<RequisitoTecnico> requisitos = solicitud.requisitos();
 
         // Sin requisitos estructurados hay que extraerlos del pliego primero: validar
@@ -153,12 +153,12 @@ public class AgenteSecop {
                         sistema(Prompts.INSTRUCCION_VALIDACION),
                         contenido.toString(),
                         solicitud.modelo()),
-                RespuestaValidacion.class);
+                InformeDeCumplimiento.class);
     }
 
     // ----------------------------------------------------------------- relevancia
 
-    public RespuestaRelevancia priorizarProcesos(SolicitudRelevancia solicitud) {
+    public Priorizacion priorizarProcesos(SolicitudRelevancia solicitud) {
         // Se envía solo lo necesario para clasificar: mandar el registro completo
         // gastaría tokens en campos que no aportan a la decisión.
         List<Object> resumidos = new ArrayList<>();
@@ -185,7 +185,7 @@ public class AgenteSecop {
                         sistema(Prompts.INSTRUCCION_RELEVANCIA),
                         contenido.toString(),
                         solicitud.modelo()),
-                RespuestaRelevancia.class);
+                Priorizacion.class);
     }
 
     private record ResumenParaClasificar(

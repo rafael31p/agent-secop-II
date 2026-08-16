@@ -3,8 +3,8 @@ package co.agentesecop.ia;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import co.agentesecop.dominio.Analisis.RespuestaAnalisis;
-import co.agentesecop.dominio.Propuestas.RespuestaValidacion;
+import co.agentesecop.domain.model.tender.AnalisisDePliego;
+import co.agentesecop.domain.model.proposal.InformeDeCumplimiento;
 import co.agentesecop.servicio.Prompts;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonEnumSchema;
@@ -39,7 +39,7 @@ class EsquemaDelModeloTest {
     @DisplayName("El esquema ofrece al modelo los mismos códigos que le pide el prompt")
     void criticidadCoincideConElPrompt() {
         List<String> valores = valoresDeEnumeracion(
-                RespuestaAnalisis.class, "requisitos", "criticidad");
+                AnalisisDePliego.class, "requisitos", "criticidad");
 
         assertEquals(List.of("OBLIGATORIO", "PONDERABLE", "DESEABLE", "INFORMATIVO"), valores,
                 "Si esto cambia, el esquema y el prompt dejan de decir lo mismo.");
@@ -56,7 +56,7 @@ class EsquemaDelModeloTest {
     @DisplayName("Los estados de cumplimiento del esquema son los del prompt de validación")
     void estadoCumplimientoCoincideConElPrompt() {
         List<String> valores = valoresDeEnumeracion(
-                RespuestaValidacion.class, "matriz", "estado");
+                InformeDeCumplimiento.class, "matriz", "estado");
 
         assertEquals(List.of("CUMPLE", "CUMPLE_PARCIAL", "NO_CUMPLE", "NO_EVALUABLE"), valores);
 

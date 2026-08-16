@@ -1,6 +1,6 @@
 package co.agentesecop.servicio;
 
-import co.agentesecop.dominio.Secop.RespuestaDocumento;
+import co.agentesecop.domain.model.procurement.TextoDeDocumento;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class ExtractorDocumentos {
         }
     }
 
-    public RespuestaDocumento extraer(String nombreArchivo, byte[] contenido) {
+    public TextoDeDocumento extraer(String nombreArchivo, byte[] contenido) {
         if (contenido == null || contenido.length == 0) {
             throw new DocumentoNoSoportado("El archivo está vacío.");
         }
@@ -79,7 +79,7 @@ public class ExtractorDocumentos {
                             + "caracteres.");
         }
 
-        return new RespuestaDocumento(
+        return new TextoDeDocumento(
                 nombreArchivo == null ? "documento" : nombreArchivo,
                 tipo, texto.length(), paginas, texto, truncado);
     }

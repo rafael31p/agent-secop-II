@@ -1,8 +1,10 @@
 package co.agentesecop.api;
 
-import co.agentesecop.dominio.Propuestas.RespuestaRelevancia;
-import co.agentesecop.dominio.Secop.ProcesoResumen;
-import co.agentesecop.dominio.Secop.RespuestaProcesos;
+import co.agentesecop.adapter.in.rest.dto.ProcesosDto.ProcesoResumenDto;
+import co.agentesecop.adapter.in.rest.dto.ProcesosDto.RespuestaProcesos;
+import co.agentesecop.adapter.in.rest.dto.PropuestasDto.RespuestaRelevancia;
+import co.agentesecop.adapter.in.rest.mapper.ProcesosMapper;
+import co.agentesecop.adapter.in.rest.mapper.PropuestasMapper;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudRelevancia;
 import co.agentesecop.ia.ErroresIA;
@@ -49,14 +51,15 @@ public class ProcesosResource {
                                     "valorMin no puede ser mayor que valorMax."))
                             .build());
         }
-        return secop.buscar(filtro);
+        return ProcesosMapper.aDto(secop.buscar(filtro));
     }
 
     @GET
     @Path("/{idProceso}")
     @Operation(summary = "Detalle de un proceso por su identificador")
-    public ProcesoResumen obtener(@PathParam("idProceso") String idProceso) {
+    public ProcesoResumenDto obtener(@PathParam("idProceso") String idProceso) {
         return secop.obtenerPorId(idProceso)
+                .map(ProcesosMapper::aDto)
                 .orElseThrow(() -> new WebApplicationException(
                         Response.status(404)
                                 .entity(ManejadorErrores.Detalle.de(
@@ -72,6 +75,6 @@ public class ProcesosResource {
         if (solicitud.procesos().isEmpty()) {
             throw new ErroresIA.PeticionInvalida("Envía al menos un proceso para priorizar.");
         }
-        return agente.priorizarProcesos(solicitud);
+        return PropuestasMapper.aDto(agente.priorizarProcesos(solicitud));
     }
 }

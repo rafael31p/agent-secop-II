@@ -1,7 +1,7 @@
 package co.agentesecop.secop;
 
-import co.agentesecop.dominio.Secop.ProcesoResumen;
-import co.agentesecop.dominio.Secop.RespuestaProcesos;
+import co.agentesecop.domain.model.procurement.ProcesoDeContratacion;
+import co.agentesecop.domain.model.procurement.ResultadoDeBusqueda;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -101,7 +101,7 @@ public class SecopCliente {
         return appToken != null && !appToken.isBlank();
     }
 
-    public RespuestaProcesos buscar(FiltroProcesos filtro) {
+    public ResultadoDeBusqueda buscar(FiltroProcesos filtro) {
         List<String> advertencias = new ArrayList<>();
 
         int limiteApi = filtro.soloTi()
@@ -123,14 +123,14 @@ public class SecopCliente {
                     .orElse(List.of());
         }
 
-        List<ProcesoResumen> procesos = new ArrayList<>(filas.stream().map(this::mapear).toList());
+        List<ProcesoDeContratacion> procesos = new ArrayList<>(filas.stream().map(this::mapear).toList());
 
         if (filtro.soloTi()) {
             int revisados = procesos.size();
             procesos = new ArrayList<>(procesos.stream()
                     .filter(p -> p.scoreTi() != null && p.scoreTi() >= HeuristicaTI.UMBRAL)
                     .sorted(Comparator.comparing(
-                            (ProcesoResumen p) -> p.scoreTi()).reversed())
+                            (ProcesoDeContratacion p) -> p.scoreTi()).reversed())
                     .limit(filtro.limite())
                     .toList());
             if (procesos.isEmpty() && revisados > 0) {
@@ -143,10 +143,10 @@ public class SecopCliente {
             }
         }
 
-        return new RespuestaProcesos(procesos.size(), procesos, datasetProcesos, advertencias);
+        return new ResultadoDeBusqueda(procesos.size(), procesos, datasetProcesos, advertencias);
     }
 
-    public Optional<ProcesoResumen> obtenerPorId(String idProceso) {
+    public Optional<ProcesoDeContratacion> obtenerPorId(String idProceso) {
         List<String> advertencias = new ArrayList<>();
         String seguro = escapar(idProceso);
         for (String campo : List.of("id_del_proceso", "referencia_del_proceso")) {
@@ -261,7 +261,7 @@ public class SecopCliente {
 
     // -------------------------------------------------------------------- mapeo
 
-    ProcesoResumen mapear(Map<String, Object> fila) {
+    ProcesoDeContratacion mapear(Map<String, Object> fila) {
         // El objeto extendido y el título corto suelen diferir; se puntúan juntos para no
         // perder señales que solo aparecen en uno de los dos.
         String textoObjeto = String.join(" ",
@@ -278,7 +278,7 @@ public class SecopCliente {
             duracion = duracion + " " + unidad;
         }
 
-        return new ProcesoResumen(
+        return new ProcesoDeContratacion(
                 valor(fila, "id"),
                 valor(fila, "numeroProceso"),
                 valor(fila, "entidad"),

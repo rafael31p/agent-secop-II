@@ -1,7 +1,9 @@
 package co.agentesecop.api;
 
-import co.agentesecop.dominio.Analisis.RespuestaAnalisis;
-import co.agentesecop.dominio.Secop.RespuestaDocumento;
+import co.agentesecop.adapter.in.rest.dto.AnalisisDto.RespuestaAnalisis;
+import co.agentesecop.adapter.in.rest.mapper.AnalisisMapper;
+import co.agentesecop.adapter.in.rest.dto.ProcesosDto.RespuestaDocumento;
+import co.agentesecop.adapter.in.rest.mapper.ProcesosMapper;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudAnalisis;
 import co.agentesecop.servicio.AgenteSecop;
 import co.agentesecop.servicio.ExtractorDocumentos;
@@ -37,7 +39,7 @@ public class AnalisisResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Operation(summary = "Extrae requisitos, riesgos y alertas normativas del material")
     public RespuestaAnalisis analizar(@Valid SolicitudAnalisis solicitud) {
-        return agente.analizarRequisitos(solicitud);
+        return AnalisisMapper.aDto(agente.analizarRequisitos(solicitud));
     }
 
     @POST
@@ -51,6 +53,6 @@ public class AnalisisResource {
                     "No se recibió ningún archivo en el campo 'archivo'.");
         }
         byte[] contenido = java.nio.file.Files.readAllBytes(archivo.uploadedFile());
-        return extractor.extraer(archivo.fileName(), contenido);
+        return ProcesosMapper.aDto(extractor.extraer(archivo.fileName(), contenido));
     }
 }

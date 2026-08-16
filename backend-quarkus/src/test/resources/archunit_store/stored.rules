@@ -1,6 +1,4 @@
 #
-#Sat Aug 15 22:21:51 GMT-05:00 2026
-no\ classes\ that\ reside\ in\ a\ package\ '..dominio..'\ should\ depend\ on\ classes\ that\ reside\ in\ any\ package\ ['..adapter..',\ '..api..',\ '..ia..',\ '..secop..',\ '..config..'],\ because\ las\ dependencias\ apuntan\ hacia\ adentro\ (SPEC-BE-01\ \u00A72)=47660c3c-adf1-4e7e-bc6a-c2daaa3f6aec
-no\ classes\ that\ reside\ in\ a\ package\ '..dominio..'\ should\ depend\ on\ classes\ that\ reside\ in\ any\ package\ ['com.fasterxml..',\ 'jakarta..',\ 'io.quarkus..',\ 'io.smallrye..',\ 'org.eclipse.microprofile..',\ 'dev.langchain4j..'],\ because\ el\ n\u00FAcleo\ de\ contrataci\u00F3n\ p\u00FAblica\ debe\ compilar\ sin\ bibliotecas\ de\ serializaci\u00F3n\ ni\ de\ HTTP\ (SPEC-BE-01\ \u00A71)=4277da39-614f-4876-8cd0-205448ebfdc2
-no\ classes\ that\ reside\ in\ a\ package\ '..servicio..'\ should\ depend\ on\ classes\ that\ reside\ in\ any\ package\ ['..adapter..',\ '..api..',\ '..ia..',\ '..secop..',\ '..config..'],\ because\ un\ caso\ de\ uso\ depende\ de\ puertos,\ no\ de\ implementaciones\ (SPEC-BE-01\ \u00A73.7)=791e74f7-ee8d-42e8-88b8-c698392b85bf
-no\ classes\ that\ reside\ outside\ of\ package\ '..api..'\ should\ depend\ on\ classes\ that\ reside\ in\ a\ package\ '..api..',\ because\ la\ capa\ de\ entrada\ es\ un\ detalle\:\ nada\ de\ dentro\ la\ conoce=efc9dcb0-a7c0-480c-876e-80be3e5c3c24
+#Sun Aug 16 09:59:31 GMT-05:00 2026
+no\ classes\ that\ reside\ in\ a\ package\ '..servicio..'\ should\ depend\ on\ classes\ that\ reside\ in\ any\ package\ ['..adapter..',\ '..api..',\ '..ia..',\ '..secop..',\ '..config..'],\ because\ un\ caso\ de\ uso\ depende\ de\ puertos,\ no\ de\ implementaciones\ (SPEC-BE-01\ \u00A73.7)=f7e9804d-1813-4f1f-aa6f-6a3c2c0faa7f
+no\ classes\ that\ reside\ outside\ of\ package\ '..api..'\ should\ depend\ on\ classes\ that\ reside\ in\ a\ package\ '..api..',\ because\ la\ capa\ de\ entrada\ es\ un\ detalle\:\ nada\ de\ dentro\ la\ conoce=41ffa969-ad6d-4ead-a23c-c6a5408aaebc
