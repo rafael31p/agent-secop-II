@@ -1,7 +1,9 @@
 package co.agentesecop.ia;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
@@ -167,6 +169,57 @@ class ProveedorLangChain4jTest {
         var traducido = proveedor.traducir(new RuntimeException("algo raro pasó"), "modelo-x");
 
         assertEquals(502, traducido.estadoHttp());
-        assertTrue(traducido.getMessage().contains("algo raro pasó"));
+        assertTrue(traducido.getMessage().contains("Proveedor de prueba"),
+                "El mensaje debe decir qué proveedor falló: " + traducido.getMessage());
+    }
+
+    // ------------------------------------------------- no filtrar texto ajeno
+
+    @Test
+    @DisplayName("El mensaje del proveedor no viaja en el error que ve el usuario")
+    void noFiltraElTextoDelProveedor() {
+        var traducido = proveedor.traducir(new RuntimeException("algo raro pasó"), "modelo-x");
+
+        assertFalse(traducido.getMessage().contains("algo raro pasó"),
+                "La rama por defecto recibe lo inesperado; devolverlo tal cual publica en "
+                        + "el navegador lo que sea que haya escrito el proveedor: "
+                        + traducido.getMessage());
+    }
+
+    @Test
+    @DisplayName("Una clave de API en el error del proveedor no llega al usuario")
+    void noFiltraLaCredencial() {
+        // No es un caso rebuscado: la API de Google AI Studio lleva la clave en la cadena
+        // de consulta, así que cualquier error que incluya la URL la incluye a ella.
+        var conCredencial = new RuntimeException(
+                "Request failed: GET https://generativelanguage.googleapis.com"
+                        + "/v1/models/gemini-3.6-flash:generateContent?key=AIzaSyTEST123");
+
+        var traducido = proveedor.traducir(conCredencial, "gemini-3.6-flash");
+
+        assertFalse(traducido.getMessage().contains("AIzaSyTEST123"),
+                "La credencial llegaría al navegador: " + traducido.getMessage());
+        assertFalse(traducido.getMessage().contains("googleapis.com"),
+                "La URL de la petición no aporta nada al usuario y arrastra la clave: "
+                        + traducido.getMessage());
+
+        // Y sin embargo no se pierde: viaja como causa, que es lo que se registra.
+        assertNotNull(traducido.getCause());
+        assertTrue(traducido.getCause().getMessage().contains("AIzaSyTEST123"),
+                "El detalle debe seguir disponible para el registro y el diagnóstico.");
+    }
+
+    @Test
+    @DisplayName("Las ramas clasificadas tampoco arrastran el texto original")
+    void lasRamasClasificadasNoFiltran() {
+        var conCredencial = new RuntimeException(
+                "429 RESOURCE_EXHAUSTED for key=AIzaSyTEST123");
+
+        var traducido = proveedor.traducir(conCredencial, "modelo-x");
+
+        assertEquals(429, traducido.estadoHttp());
+        assertFalse(traducido.getMessage().contains("AIzaSyTEST123"),
+                "Clasificar bien no basta si el mensaje se construye con el texto ajeno: "
+                        + traducido.getMessage());
     }
 }

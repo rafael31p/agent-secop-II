@@ -4,7 +4,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, ErrorApi } from "@/lib/api";
+import { api } from "@/lib/api";
+import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { useIA } from "@/lib/ia";
 import { Aviso, Cargando, Etiqueta, Tarjeta, Vacio } from "../comunes";
@@ -72,7 +73,7 @@ export function Proponer() {
         }),
       );
     } catch (excepcion) {
-      setError(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+      setError(mensajeDeError(excepcion));
     } finally {
       setGenerando(false);
     }

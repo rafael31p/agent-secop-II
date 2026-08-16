@@ -45,7 +45,7 @@ public class ProcesosResource {
         if (filtro.rangoDeValorInvertido()) {
             throw new WebApplicationException(
                     Response.status(422)
-                            .entity(new ManejadorErrores.Detalle(
+                            .entity(ManejadorErrores.Detalle.de(
                                     "valorMin no puede ser mayor que valorMax."))
                             .build());
         }
@@ -59,7 +59,7 @@ public class ProcesosResource {
         return secop.obtenerPorId(idProceso)
                 .orElseThrow(() -> new WebApplicationException(
                         Response.status(404)
-                                .entity(new ManejadorErrores.Detalle(
+                                .entity(ManejadorErrores.Detalle.de(
                                         "No se encontró el proceso '%s' en SECOP II."
                                                 .formatted(idProceso)))
                                 .build()));

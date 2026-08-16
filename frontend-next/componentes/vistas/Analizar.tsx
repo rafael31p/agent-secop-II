@@ -4,7 +4,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { api, ErrorApi } from "@/lib/api";
+import { api } from "@/lib/api";
+import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { formatearNumero } from "@/lib/formato";
 import { useIA } from "@/lib/ia";
@@ -68,7 +69,7 @@ export function Analizar() {
             : ""),
       );
     } catch (excepcion) {
-      setError(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+      setError(mensajeDeError(excepcion));
     } finally {
       setSubiendo(false);
       if (entradaArchivo.current) entradaArchivo.current.value = "";
@@ -91,7 +92,7 @@ export function Analizar() {
       });
       espacio.fijarAnalisis(analisis);
     } catch (excepcion) {
-      setError(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+      setError(mensajeDeError(excepcion));
     } finally {
       setAnalizando(false);
     }

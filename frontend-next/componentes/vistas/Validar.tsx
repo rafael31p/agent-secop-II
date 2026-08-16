@@ -3,7 +3,8 @@
 /** Validación de la propuesta contra los requisitos del pliego. */
 
 import { useEffect, useRef, useState } from "react";
-import { api, ErrorApi } from "@/lib/api";
+import { api } from "@/lib/api";
+import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { formatearNumero } from "@/lib/formato";
 import { useIA } from "@/lib/ia";
@@ -50,7 +51,7 @@ export function Validar() {
       const documento = await api.cargarDocumento(archivo);
       setTexto(documento.texto);
     } catch (excepcion) {
-      setError(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+      setError(mensajeDeError(excepcion));
     } finally {
       setSubiendo(false);
       if (entradaArchivo.current) entradaArchivo.current.value = "";
@@ -74,7 +75,7 @@ export function Validar() {
         }),
       );
     } catch (excepcion) {
-      setError(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+      setError(mensajeDeError(excepcion));
     } finally {
       setValidando(false);
     }

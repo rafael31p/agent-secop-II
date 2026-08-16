@@ -166,8 +166,12 @@ public class SecopCliente {
                     datasetProcesos, limite, offset, orden, where,
                     appToken.isBlank() ? null : appToken);
         } catch (RuntimeException e) {
-            LOG.warnf("Error consultando SECOP: %s", e.getMessage());
-            advertencias.add("SECOP no respondió correctamente: " + recortar(e.getMessage()));
+            // El detalle va al registro; al usuario, un mensaje de catálogo cerrado. La
+            // excepción del cliente HTTP puede incluir la URL completa —con el app token
+            // en la cadena de consulta— y esa cadena se pintaría en el navegador.
+            LOG.warn("Error consultando SECOP", e);
+            advertencias.add("La fuente de datos de SECOP II no respondió correctamente. "
+                    + "Reintenta en unos minutos.");
             return null;
         }
     }
@@ -345,10 +349,4 @@ public class SecopCliente {
         return texto.startsWith("http://") || texto.startsWith("https://") ? texto : null;
     }
 
-    private static String recortar(String texto) {
-        if (texto == null) {
-            return "sin detalle";
-        }
-        return texto.length() <= 200 ? texto : texto.substring(0, 200) + "…";
-    }
 }

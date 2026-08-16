@@ -35,6 +35,13 @@ export class ErrorApi extends Error {
   constructor(
     message: string,
     readonly estado: number,
+    /**
+     * Identificador que el backend asignó al error y escribió en su registro.
+     * El mensaje que llega es genérico a propósito —el detalle del proveedor
+     * puede arrastrar credenciales—, así que esto es lo único que permite
+     * conectar lo que vio el usuario con lo que pasó en el servidor.
+     */
+    readonly correlationId: string | null = null,
   ) {
     super(message);
     this.name = "ErrorApi";
@@ -59,34 +66,47 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
   }
 
   if (!respuesta.ok) {
-    throw new ErrorApi(await extraerDetalle(respuesta), respuesta.status);
+    throw await leerError(respuesta);
   }
   return (await respuesta.json()) as T;
 }
 
 /**
- * Saca el mensaje de error del cuerpo. El backend responde `{"detail": "..."}`
- * en todos sus errores (ver `ManejadorErrores`), pero un fallo del contenedor o
- * de un proxy puede devolver otra cosa; en ese caso se cae al código de estado.
+ * Construye el error a partir del cuerpo. El backend responde
+ * `{"detail": "...", "correlationId": "..."}` en todos sus errores (ver
+ * `ManejadorErrores`), pero un fallo del contenedor o de un proxy puede
+ * devolver otra cosa; en ese caso se cae al código de estado.
  */
-async function extraerDetalle(respuesta: Response): Promise<string> {
+async function leerError(respuesta: Response): Promise<ErrorApi> {
   try {
     const cuerpo = await respuesta.json();
-    const detalle = cuerpo?.detail;
-    if (typeof detalle === "string" && detalle.trim()) return detalle;
-    if (Array.isArray(detalle)) {
-      return detalle
-        .map((e: { loc?: unknown[]; msg?: string }) => {
-          const campo = Array.isArray(e.loc) ? e.loc.slice(1).join(".") : "";
-          return campo ? `${campo}: ${e.msg}` : (e.msg ?? "");
-        })
-        .filter(Boolean)
-        .join(" · ");
-    }
-    return JSON.stringify(cuerpo).slice(0, 300);
+    const identificador =
+      typeof cuerpo?.correlationId === "string" ? cuerpo.correlationId : null;
+    return new ErrorApi(mensajeDe(cuerpo, respuesta), respuesta.status, identificador);
   } catch {
+    return new ErrorApi(
+      `${respuesta.status} ${respuesta.statusText}`.trim(),
+      respuesta.status,
+    );
+  }
+}
+
+function mensajeDe(cuerpo: { detail?: unknown }, respuesta: Response): string {
+  const detalle = cuerpo?.detail;
+  if (typeof detalle === "string" && detalle.trim()) return detalle;
+  if (Array.isArray(detalle)) {
+    return detalle
+      .map((e: { loc?: unknown[]; msg?: string }) => {
+        const campo = Array.isArray(e.loc) ? e.loc.slice(1).join(".") : "";
+        return campo ? `${campo}: ${e.msg}` : (e.msg ?? "");
+      })
+      .filter(Boolean)
+      .join(" · ");
+  }
+  if (cuerpo === null || cuerpo === undefined) {
     return `${respuesta.status} ${respuesta.statusText}`.trim();
   }
+  return JSON.stringify(cuerpo).slice(0, 300);
 }
 
 export const api = {
@@ -201,7 +221,7 @@ export async function chatStream(
   }
 
   if (!respuesta.ok) {
-    throw new ErrorApi(await extraerDetalle(respuesta), respuesta.status);
+    throw await leerError(respuesta);
   }
   if (!respuesta.body) {
     throw new ErrorApi("El servidor no devolvió un cuerpo de respuesta.", 502);

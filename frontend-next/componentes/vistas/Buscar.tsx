@@ -4,7 +4,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { api, ErrorApi } from "@/lib/api";
+import { api } from "@/lib/api";
+import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { limpiarFiltro } from "@/lib/filtros";
 import { formatearCOP, formatearFecha } from "@/lib/formato";
@@ -61,7 +62,7 @@ export function Buscar() {
     try {
       setResultado(await api.buscarProcesos(limpiarFiltro(filtro)));
     } catch (excepcion) {
-      setError(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+      setError(mensajeDeError(excepcion));
       setResultado(null);
     } finally {
       setBuscando(false);
@@ -82,7 +83,7 @@ export function Buscar() {
         }),
       );
     } catch (excepcion) {
-      setErrorIA(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+      setErrorIA(mensajeDeError(excepcion));
     } finally {
       setPriorizando(false);
     }

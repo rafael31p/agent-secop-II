@@ -299,8 +299,18 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
                     "El servicio de %s falló temporalmente. Reintenta.".formatted(etiqueta()),
                     502, error);
         }
+        // Rama por defecto: lo inesperado. Justo por eso NO puede llevar el texto del
+        // proveedor a la respuesta HTTP. Las cinco ramas anteriores clasifican lo
+        // conocido y redactan un mensaje propio; aquí no se sabe qué contiene `mensaje`,
+        // y en Google AI la clave de la API viaja en la cadena de consulta de la URL.
+        //
+        // El detalle no se pierde: viaja como causa de la excepción y `ManejadorErrores`
+        // lo registra junto al identificador que sí ve el usuario.
         return new ErroresIA.FalloDelProveedor(
-                "Error de %s: %s".formatted(etiqueta(), recortar(mensaje)), 502, error);
+                ("%s devolvió un error que no se pudo clasificar. Reintenta; si persiste, "
+                        + "cita el identificador de este error al reportarlo.")
+                        .formatted(etiqueta()),
+                502, error);
     }
 
     /** Los proveedores suelen anidar el detalle útil en la causa. */
@@ -325,9 +335,5 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
             }
         }
         return false;
-    }
-
-    private static String recortar(String texto) {
-        return texto.length() <= 300 ? texto : texto.substring(0, 300) + "…";
     }
 }

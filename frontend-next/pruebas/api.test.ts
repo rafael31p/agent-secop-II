@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, chatStream, ErrorApi } from "@/lib/api";
+import { mensajeDeError } from "@/lib/errores";
 import { respuestaSse } from "./ayudas";
 
 /** Respuesta JSON de un solo uso, como la devolvería el backend. */
@@ -43,6 +44,35 @@ describe("cliente HTTP", () => {
     expect(fallo).toBeInstanceOf(ErrorApi);
     expect(fallo.estado).toBe(503);
     expect(fallo.message).toBe("Falta AGENTE_IA_OPENAI_API_KEY.");
+  });
+
+  it("conserva la referencia con la que el backend registró el error", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      respuesta(
+        {
+          detail: "Gemini devolvió un error que no se pudo clasificar.",
+          correlationId: "a1b2c3d4",
+        },
+        502,
+      ),
+    );
+
+    const fallo = await api.salud().catch((e) => e);
+
+    // El mensaje es genérico a propósito: el texto del proveedor puede
+    // arrastrar la clave de la API. La referencia es lo único que permite
+    // encontrar la traza completa en el servidor.
+    expect(fallo.correlationId).toBe("a1b2c3d4");
+    expect(mensajeDeError(fallo)).toContain("referencia a1b2c3d4");
+  });
+
+  it("no inventa referencia cuando el error no la trae", async () => {
+    vi.mocked(fetch).mockResolvedValue(respuesta({ detail: "Sin identificador." }, 400));
+
+    const fallo = await api.salud().catch((e) => e);
+
+    expect(fallo.correlationId).toBeNull();
+    expect(mensajeDeError(fallo)).toBe("Sin identificador.");
   });
 
   it("cae al código de estado si el cuerpo del error no es JSON", async () => {

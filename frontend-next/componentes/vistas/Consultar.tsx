@@ -3,7 +3,8 @@
 /** Consulta libre al agente experto, con respuesta en streaming. */
 
 import { useEffect, useRef, useState } from "react";
-import { chatStream, ErrorApi } from "@/lib/api";
+import { chatStream } from "@/lib/api";
+import { mensajeDeError } from "@/lib/errores";
 import { type Espacio, useEspacio } from "@/lib/estado";
 import { formatearNumero } from "@/lib/formato";
 import { useIA } from "@/lib/ia";
@@ -75,7 +76,7 @@ export function Consultar() {
     } catch (excepcion) {
       // Cancelar es una decisión del usuario, no un error que reportar.
       if (!controlador.signal.aborted) {
-        setError(excepcion instanceof ErrorApi ? excepcion.message : String(excepcion));
+        setError(mensajeDeError(excepcion));
       }
     } finally {
       // Manda lo que devolvió el flujo completo; si se cortó a la mitad, lo
