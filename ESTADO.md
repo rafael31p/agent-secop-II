@@ -1,4 +1,4 @@
-# Estado del proyecto — 15 de agosto de 2026 (noche)
+# Estado del proyecto — 16 de agosto de 2026
 
 Punto de retomada para la próxima sesión.
 
@@ -48,11 +48,57 @@ El repositorio ya es git, con CI, y las dos fases de mayor valor del
 | 1.9 | Foco visible (`:focus-visible`) y salto al contenido |
 | 1.10 | `aria-live` en el chat y `role="status"` en las operaciones largas |
 
-Estado de las suites: **102/102 backend · 74/74 frontend**.
+Estado de las suites: **119/119 backend · 74/74 frontend**.
 
 Verificado en el navegador tras los cambios: búsqueda, cancelación de una
 priorización sin dejar error, chat en streaming completo, foco visible con
 teclado y atributos ARIA presentes en el DOM.
+
+## Fase 2 · Arquitectura hexagonal: en curso
+
+De los nueve pasos de SPEC-BE-01 §4, hechos **1, 4 y 8**, y el 3 a medias.
+
+| Paso | Estado | Qué quedó |
+|---|---|---|
+| 1 · Enumeraciones tras `CodedEnum` | ✅ | Cinco copias del mismo molde → una. `CodedEnumModule` en el adaptador. |
+| 2 · DTO de respuesta + mapeadores | ⬜ | Es lo que falta para vaciar `dominio/`. |
+| 3 · Quitar frameworks del dominio | 🟡 | Las solicitudes ya salieron (417 → 166 infracciones). Faltan las respuestas. |
+| 4 · `EstadoSalud` y `ProveedorDisponible` fuera | ✅ | No eran dominio: uno describe la instalación, otro un proveedor de modelos. |
+| 5 · Puertos de salida | ⬜ | Bloqueado: ver abajo. |
+| 6 · Partir `AgenteSecop` | ⬜ | El paso de riesgo alto. |
+| 7 · Prompts a Qute | ⬜ | |
+| 8 · Versión única | ✅ | Sale del `pom.xml`; había tres números y ya divergían. |
+| 9 · Almacén de ArchUnit vacío | ⬜ | Va por 244, desde 482. |
+
+**Deuda registrada: 482 → 244.** El desglose actual es 166 de
+`dominio → frameworks` (las anotaciones de los records de respuesta) y 78 de
+`servicio → adaptadores`.
+
+### Lo que falta es un solo bloque, no cuatro pasos sueltos
+
+Conviene saberlo antes de empezar: los pasos 2, 5 y 6 están atados entre sí y
+hacerlos a medias deja el sistema peor que ahora.
+
+El nudo es que los mismos records sirven de contrato HTTP, de modelo y de esquema
+para el modelo de lenguaje. Un puerto de salida para el catálogo de SECOP tendría
+que recibir `FiltroProcesos`, que es un DTO de entrada HTTP, así que declararlo
+hoy cambiaría una infracción por otra. El puerto necesita un tipo de comando
+propio, y ese tipo aparece al partir `AgenteSecop` —el paso 6, el de riesgo
+alto—. La spec ya lo dice: ese paso conviene hacerlo en una sesión dedicada y sin
+mezclarlo con nada más.
+
+### Un hallazgo que cambia el orden de la fase 6
+
+**Las constantes de las enumeraciones no se pueden renombrar a inglés todavía**,
+aunque SPEC-BE-01 §3.1 lo proponga. LangChain4j deriva el esquema JSON del
+**nombre de la constante**, no del código de serialización, y los prompts le
+piden al modelo esos mismos códigos en español. Renombrar dejaría el esquema
+diciendo una cosa y el prompt otra, y con esquema estricto gana el esquema: el
+prompt pasaría a mentirle al modelo sin que nada fallara de forma visible.
+
+El renombrado es seguro cuando el adaptador de modelos tenga su tipo de carga
+útil propio, como la propia spec prevé en §3.3. Mientras tanto,
+`EsquemaDelModeloTest` fija los valores y comprueba que el prompt los menciona.
 
 ## Frontend Next.js: cerrado
 
@@ -129,9 +175,7 @@ python verificar_en_vivo.py                    # en otra terminal
 
 Lo que sigue del plan, en orden:
 
-1. **Fase 2 · Arquitectura hexagonal** (8-12 jornadas). La más invasiva. Empieza por
-   extraer `domain/` sin anotaciones de framework, que es lo que hace bajar el almacén
-   de ArchUnit de 459 a cero.
+1. **Terminar la fase 2**, empezando por el bloque atado 2 + 5 + 6 descrito arriba.
 2. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Va después de la 2 a
    propósito: los decoradores se aplican sobre puertos que aún no existen.
 3. **Fase 4 · Frontend** (6-10 jornadas). Incluye `useAsyncAction`, que absorbe la
@@ -144,10 +188,12 @@ la herramienta no debería usarse con un pliego real de un cliente real.
 
 ## Deuda registrada, para que no se olvide
 
-- **ArchUnit congela 482 infracciones** (459 de `dominio → frameworks`, 23 de
+- **ArchUnit congela 244 infracciones** (166 de `dominio → frameworks`, 78 de
   `servicio → adaptadores`). Están en `src/test/resources/archunit_store` y la fase 2 las
-  va borrando. Subieron de 381 a 482 en la fase 1, al añadir las cotas de validación a los
-  records del dominio: es deuda deliberada, consecuencia de contener antes de reestructurar.
+  va borrando; empezó en 482. Las 78 no son deuda nueva: estaban camufladas porque los DTO
+  de solicitud vivían en el paquete `dominio`, y salieron a la luz al moverlos a su sitio.
+- **El dominio nuevo (`domain/`) se vigila sin congelar.** Nace limpio y nada puede
+  entrar ahí arrastrando un framework.
 - **ESLint deja 8 avisos**, siete del mismo patrón: restaurar estado en un efecto. Es
   correcto para algo que no existe durante el render en servidor, y aun así encadena
   renders; lo paga el reducer de los puntos 4.2 y 4.3.
