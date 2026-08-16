@@ -1,5 +1,6 @@
 # Agente SECOP II — Análisis de Contratación Pública TI
 
+[![CI](https://github.com/rafael31p/agent-secop-II/actions/workflows/ci.yml/badge.svg)](https://github.com/rafael31p/agent-secop-II/actions/workflows/ci.yml)
 [![Licencia: GPL v3](https://img.shields.io/badge/licencia-GPLv3-blue.svg)](LICENSE)
 
 Aplicación full-stack con un agente de IA experto en **contratación pública colombiana**,
