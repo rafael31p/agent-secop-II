@@ -26,6 +26,7 @@
         <!-- WireMock como librería en la misma JVM: no hay Docker en este entorno,
              así que Testcontainers no es una opción. -->
         <wiremock.version>3.13.2</wiremock.version>
+        <archunit.version>1.4.1</archunit.version>
     </properties>
 
     <dependencyManagement>
@@ -123,6 +124,15 @@
             <groupId>org.wiremock</groupId>
             <artifactId>wiremock</artifactId>
             <version>${wiremock.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- La regla de dependencias, verificada en cada compilación. Se
+             introduce con las infracciones actuales congeladas: la deuda queda
+             registrada y no puede crecer. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
