@@ -1,0 +1,63 @@
+package co.agentesecop.config;
+
+import io.quarkus.runtime.LaunchMode;
+import io.quarkus.runtime.StartupEvent;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
+import java.util.List;
+import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
+
+/**
+ * Comprobaciones que deben hacer fallar el arranque en producción.
+ *
+ * <h2>Por qué existe esta clase y no basta con la configuración</h2>
+ *
+ * <p>La intuición razonable es que dejar {@code %prod.quarkus.http.cors.origins=${AGENTE_CORS_ORIGINS}}
+ * baste: sin la variable, la expresión no resuelve y el arranque falla. Se comprobó
+ * ejecutando el jar empaquetado con el perfil {@code prod} y sin la variable, y
+ * <strong>arranca sin protestar</strong>: la propiedad es opcional, así que una expresión
+ * sin valor se resuelve como ausente en lugar de romper.
+ *
+ * <p>El resultado sería un servicio en producción con CORS habilitado y ningún origen
+ * autorizado —o peor, la ilusión de que está configurado—. De ahí esta comprobación
+ * explícita.
+ *
+ * <p>Se usa {@link LaunchMode#NORMAL} y no el nombre del perfil porque describe justo lo
+ * que interesa: la aplicación arrancó como servicio, no en desarrollo ni en pruebas.
+ */
+@ApplicationScoped
+public class ValidacionDeArranque {
+
+    private static final Logger LOG = Logger.getLogger(ValidacionDeArranque.class);
+
+    @ConfigProperty(name = "quarkus.http.cors.origins")
+    Optional<List<String>> origenesCors;
+
+    void alArrancar(@Observes StartupEvent evento) {
+        if (LaunchMode.current() != LaunchMode.NORMAL) {
+            return;
+        }
+        exigirOrigenesCors();
+    }
+
+    private void exigirOrigenesCors() {
+        boolean vacio = origenesCors.isEmpty()
+                || origenesCors.get().stream().allMatch(String::isBlank);
+        if (vacio) {
+            throw new IllegalStateException("""
+                    Falta AGENTE_CORS_ORIGINS.
+
+                    En producción hay que declarar qué orígenes pueden llamar a este \
+                    servicio, por ejemplo:
+
+                        AGENTE_CORS_ORIGINS=https://tu-frontend.example.com
+
+                    Se prefiere no arrancar a arrancar sin saberlo. Ojo: CORS lo aplica el \
+                    navegador y no es un control de acceso; quien protege los endpoints \
+                    que gastan dinero es la clave de API.""");
+        }
+        LOG.infof("CORS autorizado para: %s", String.join(", ", origenesCors.get()));
+    }
+}

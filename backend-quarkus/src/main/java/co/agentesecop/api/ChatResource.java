@@ -3,6 +3,7 @@ package co.agentesecop.api;
 import co.agentesecop.dominio.Solicitudes.SolicitudChat;
 import co.agentesecop.ia.ErroresIA;
 import co.agentesecop.servicio.AgenteSecop;
+import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -26,6 +27,12 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
  *
  * <p>Se usa {@link OutboundSseEvent} en lugar de emitir cadenas: es lo único que permite
  * fijar el nombre del evento, y deja el formateo SSE en manos del framework.
+ *
+ * <p>El método va anotado con {@link Blocking} aunque devuelva un {@code Multi}. Devolver
+ * un tipo reactivo hace que RESTEasy Reactive ejecute el método en el bucle de eventos, y
+ * lo que ocurre antes de que exista el flujo <em>no</em> es reactivo: resolver el
+ * proveedor, comprobar credenciales y construir el modelo, que abre un cliente HTTP. Ese
+ * trabajo en el hilo de E/S bloquea a todas las peticiones del servidor, no solo a esta.
  */
 @Path("/api/chat")
 @Tag(name = "chat", description = "Consulta libre al agente experto")
@@ -42,6 +49,7 @@ public class ChatResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @Operation(summary = "Respuesta del agente en streaming (SSE)")
+    @Blocking
     public Multi<OutboundSseEvent> chat(@Valid SolicitudChat solicitud, @Context Sse sse) {
         Multi<OutboundSseEvent> fragmentos;
         try {
