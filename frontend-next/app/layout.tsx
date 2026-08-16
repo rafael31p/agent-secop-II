@@ -21,8 +21,18 @@ export default function LayoutRaiz({ children }: { children: ReactNode }) {
     <html lang="es-CO">
       <body>
         <Proveedores>
+          {/*
+            Primer elemento enfocable de la página. La navegación se repite en
+            las cinco rutas; sin este salto, llegar al contenido con teclado
+            obliga a atravesarla entera cada vez.
+          */}
+          <a href="#contenido" className="saltar-al-contenido">
+            Saltar al contenido
+          </a>
           <Cabecera />
-          <main>{children}</main>
+          <main id="contenido" tabIndex={-1}>
+            {children}
+          </main>
           <Pie />
         </Proveedores>
       </body>

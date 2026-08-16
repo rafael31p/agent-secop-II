@@ -144,6 +144,7 @@ describe("vista Buscar", () => {
     await waitFor(() =>
       expect(api.priorizarProcesos).toHaveBeenCalledWith(
         expect.objectContaining({ proveedor: "gemini", modelo: null, maximo: 15 }),
+        expect.any(AbortSignal),
       ),
     );
   });

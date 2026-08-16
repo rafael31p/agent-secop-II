@@ -51,6 +51,51 @@ const NO_HAY_BACKEND =
   (BASE || "el mismo origen") +
   "?";
 
+/**
+ * Tiempo límite de las consultas que no invocan al modelo.
+ *
+ * Sin límite, `fetch` espera indefinidamente: si el backend acepta la conexión
+ * y luego se queda callado, la vista se queda con el botón en «Buscando…» para
+ * siempre y sin forma de salir.
+ */
+const LIMITE_CONSULTA_MS = 30_000;
+
+/**
+ * Tiempo límite de las llamadas que invocan al modelo.
+ *
+ * Cinco minutos, alineado con `agente.ia.timeout-segundos` del backend. Ponerlo
+ * por debajo haría que el cliente se rindiera mientras el servidor sigue
+ * trabajando —y facturando— sin que nadie recoja el resultado.
+ */
+const LIMITE_MODELO_MS = 300_000;
+
+/**
+ * Combina el límite de tiempo con la cancelación del usuario, si la hay.
+ *
+ * Las dos abortan la misma petición, y quien la recibe necesita distinguirlas:
+ * rendirse por tiempo es un error que hay que explicar, y cancelar es una
+ * decisión que no hay que reportar como fallo.
+ */
+function senalConLimite(milisegundos: number, externa?: AbortSignal): AbortSignal {
+  const porTiempo = AbortSignal.timeout(milisegundos);
+  return externa ? AbortSignal.any([externa, porTiempo]) : porTiempo;
+}
+
+/** Traduce un aborto en el error que corresponda, o lo propaga si fue el usuario. */
+function errorDeAborto(excepcion: unknown, externa: AbortSignal | undefined): ErrorApi {
+  if (externa?.aborted) {
+    throw excepcion;
+  }
+  if (excepcion instanceof DOMException && excepcion.name === "TimeoutError") {
+    return new ErrorApi(
+      "La operación superó el tiempo límite. El servidor puede seguir " +
+        "trabajando; espera un momento antes de reintentar para no duplicarla.",
+      408,
+    );
+  }
+  return new ErrorApi(NO_HAY_BACKEND, 0);
+}
+
 export class ErrorApi extends Error {
   constructor(
     message: string,
@@ -68,11 +113,17 @@ export class ErrorApi extends Error {
   }
 }
 
-async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
+async function pedir<T>(
+  ruta: string,
+  opciones: RequestInit = {},
+  limite = LIMITE_CONSULTA_MS,
+  senal?: AbortSignal,
+): Promise<T> {
   let respuesta: Response;
   try {
     respuesta = await fetch(`${BASE}${ruta}`, {
       ...opciones,
+      signal: senalConLimite(limite, senal),
       headers: {
         // FormData necesita que el navegador ponga su propio boundary.
         ...(opciones.body instanceof FormData
@@ -82,8 +133,8 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
         ...opciones.headers,
       },
     });
-  } catch {
-    throw new ErrorApi(NO_HAY_BACKEND, 0);
+  } catch (excepcion) {
+    throw errorDeAborto(excepcion, senal);
   }
 
   if (!respuesta.ok) {
@@ -150,11 +201,14 @@ export const api = {
       perfilProveedor?: string | null;
       maximo?: number;
     } & SeleccionIA,
+    senal?: AbortSignal,
   ) =>
-    pedir<RespuestaRelevancia>("/api/procesos/relevancia-ti", {
-      method: "POST",
-      body: JSON.stringify(cuerpo),
-    }),
+    pedir<RespuestaRelevancia>(
+      "/api/procesos/relevancia-ti",
+      { method: "POST", body: JSON.stringify(cuerpo) },
+      LIMITE_MODELO_MS,
+      senal,
+    ),
 
   analizarRequisitos: (
     cuerpo: {
@@ -165,19 +219,25 @@ export const api = {
       valorEstimado?: number | null;
       contextoProveedor?: string | null;
     } & SeleccionIA,
+    senal?: AbortSignal,
   ) =>
-    pedir<RespuestaAnalisis>("/api/analisis/requisitos", {
-      method: "POST",
-      body: JSON.stringify(cuerpo),
-    }),
+    pedir<RespuestaAnalisis>(
+      "/api/analisis/requisitos",
+      { method: "POST", body: JSON.stringify(cuerpo) },
+      LIMITE_MODELO_MS,
+      senal,
+    ),
 
-  cargarDocumento: (archivo: File) => {
+  cargarDocumento: (archivo: File, senal?: AbortSignal) => {
     const datos = new FormData();
     datos.append("archivo", archivo);
-    return pedir<RespuestaDocumento>("/api/analisis/documento", {
-      method: "POST",
-      body: datos,
-    });
+    // Extraer texto de un PDF de cientos de páginas pasa de los 30 segundos.
+    return pedir<RespuestaDocumento>(
+      "/api/analisis/documento",
+      { method: "POST", body: datos },
+      120_000,
+      senal,
+    );
   },
 
   generarPropuesta: (
@@ -191,11 +251,14 @@ export const api = {
       plazoMeses?: number | null;
       enfasis?: string[];
     } & SeleccionIA,
+    senal?: AbortSignal,
   ) =>
-    pedir<RespuestaPropuesta>("/api/propuestas/generar", {
-      method: "POST",
-      body: JSON.stringify(cuerpo),
-    }),
+    pedir<RespuestaPropuesta>(
+      "/api/propuestas/generar",
+      { method: "POST", body: JSON.stringify(cuerpo) },
+      LIMITE_MODELO_MS,
+      senal,
+    ),
 
   validarPropuesta: (
     cuerpo: {
@@ -204,11 +267,14 @@ export const api = {
       textoPliego?: string | null;
       objetoContractual?: string | null;
     } & SeleccionIA,
+    senal?: AbortSignal,
   ) =>
-    pedir<RespuestaValidacion>("/api/propuestas/validar", {
-      method: "POST",
-      body: JSON.stringify(cuerpo),
-    }),
+    pedir<RespuestaValidacion>(
+      "/api/propuestas/validar",
+      { method: "POST", body: JSON.stringify(cuerpo) },
+      LIMITE_MODELO_MS,
+      senal,
+    ),
 };
 
 /**
@@ -235,13 +301,12 @@ export async function chatStream(
         ...cabecerasDeAutenticacion(),
       },
       body: JSON.stringify(cuerpo),
-      signal: senal,
+      signal: senalConLimite(LIMITE_MODELO_MS, senal),
     });
   } catch (excepcion) {
-    // Una cancelación deliberada no es un fallo de red: se propaga tal cual
-    // para que quien llama distinga los dos casos.
-    if (senal?.aborted) throw excepcion;
-    throw new ErrorApi(NO_HAY_BACKEND, 0);
+    // Una cancelación deliberada no es un fallo de red: `errorDeAborto` la
+    // propaga tal cual para que quien llama distinga los dos casos.
+    throw errorDeAborto(excepcion, senal);
   }
 
   if (!respuesta.ok) {

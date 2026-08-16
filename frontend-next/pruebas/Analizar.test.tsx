@@ -56,6 +56,8 @@ describe("vista Analizar", () => {
           entidad: "MinTIC",
           proveedor: "gemini",
         }),
+        // Segundo argumento: la señal con la que se cancela y con la que expira.
+        expect.any(AbortSignal),
       ),
     );
   });

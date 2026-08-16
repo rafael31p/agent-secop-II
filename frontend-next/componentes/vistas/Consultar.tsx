@@ -140,20 +140,47 @@ export function Consultar() {
         </div>
       )}
 
-      <div className="chat-hilo">
+      {/*
+        `polite` y no `assertive`: una respuesta larga en modo asertivo
+        interrumpiría al usuario sin parar. `additions` para que anuncie los
+        mensajes al añadirse, no el hilo entero cada vez.
+      */}
+      <div
+        className="chat-hilo"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-busy={respondiendo}
+        aria-label="Conversación con el agente"
+      >
         {mensajes.map((mensaje, indice) => (
           <div key={indice} className={`chat-mensaje ${mensaje.rol}`}>
             {mensaje.contenido}
           </div>
         ))}
-        {parcial && <div className="chat-mensaje assistant">{parcial}</div>}
+        {/*
+          El texto parcial se oculta al lector a propósito. El flujo emite
+          decenas de fragmentos por segundo y anunciar cada uno es ruido
+          inutilizable; además, su contenido llega íntegro como mensaje en
+          cuanto termina, y ahí sí se anuncia una vez. Mientras tanto, el
+          progreso se comunica por la región de estado de abajo.
+        */}
+        {parcial && (
+          <div className="chat-mensaje assistant" aria-hidden="true">
+            {parcial}
+          </div>
+        )}
         {respondiendo && !parcial && (
-          <div className="chat-mensaje assistant">
+          <div className="chat-mensaje assistant" aria-hidden="true">
             <Cargando texto="Pensando…" />
           </div>
         )}
         <div ref={finHilo} />
       </div>
+
+      <p role="status" aria-live="polite" className="visualmente-oculto">
+        {respondiendo ? "El agente está redactando la respuesta." : ""}
+      </p>
 
       {error && <Aviso tipo="error">{error}</Aviso>}
 

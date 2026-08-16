@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { fueCancelada, useCancelacion } from "@/lib/cancelacion";
 import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { formatearNumero } from "@/lib/formato";
@@ -35,6 +36,7 @@ export function Validar() {
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<RespuestaValidacion | null>(null);
   const entradaArchivo = useRef<HTMLInputElement>(null);
+  const cancelacion = useCancelacion();
 
   const markdownPropuesta = espacio.propuesta?.markdown;
 
@@ -45,13 +47,14 @@ export function Validar() {
   }, [markdownPropuesta]);
 
   async function subirDocumento(archivo: File) {
+    const senal = cancelacion.iniciar();
     setSubiendo(true);
     setError(null);
     try {
-      const documento = await api.cargarDocumento(archivo);
+      const documento = await api.cargarDocumento(archivo, senal);
       setTexto(documento.texto);
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion));
+      if (!fueCancelada(senal, excepcion)) setError(mensajeDeError(excepcion));
     } finally {
       setSubiendo(false);
       if (entradaArchivo.current) entradaArchivo.current.value = "";
@@ -59,23 +62,27 @@ export function Validar() {
   }
 
   async function validar() {
+    const senal = cancelacion.iniciar();
     setValidando(true);
     setError(null);
     try {
       setResultado(
-        await api.validarPropuesta({
-          textoPropuesta: texto,
-          requisitos: espacio.requisitos,
-          textoPliego: espacio.requisitos.length ? null : espacio.textoPliego || null,
-          objetoContractual:
-            espacio.analisis?.objetoNormalizado ??
-            espacio.procesoSeleccionado?.objeto ??
-            null,
-          ...ia.seleccion,
-        }),
+        await api.validarPropuesta(
+          {
+            textoPropuesta: texto,
+            requisitos: espacio.requisitos,
+            textoPliego: espacio.requisitos.length ? null : espacio.textoPliego || null,
+            objetoContractual:
+              espacio.analisis?.objetoNormalizado ??
+              espacio.procesoSeleccionado?.objeto ??
+              null,
+            ...ia.seleccion,
+          },
+          senal,
+        ),
       );
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion));
+      if (!fueCancelada(senal, excepcion)) setError(mensajeDeError(excepcion));
     } finally {
       setValidando(false);
     }
@@ -153,6 +160,11 @@ export function Validar() {
           <button className="principal" onClick={validar} disabled={validando || !listo}>
             {validando ? <Cargando texto="Validando…" /> : "Validar cumplimiento"}
           </button>
+          {(validando || subiendo) && (
+            <button className="secundario" onClick={cancelacion.cancelar}>
+              Cancelar
+            </button>
+          )}
         </div>
       </Tarjeta>
 

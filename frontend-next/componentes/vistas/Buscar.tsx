@@ -5,6 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
+import { fueCancelada, useCancelacion } from "@/lib/cancelacion";
 import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { limpiarFiltro } from "@/lib/filtros";
@@ -45,6 +46,7 @@ export function Buscar() {
   const [priorizacion, setPriorizacion] = useState<RespuestaRelevancia | null>(null);
   const [priorizando, setPriorizando] = useState(false);
   const [errorIA, setErrorIA] = useState<string | null>(null);
+  const cancelacion = useCancelacion();
 
   function actualizar<C extends keyof FiltroProcesos>(
     campo: C,
@@ -71,19 +73,23 @@ export function Buscar() {
 
   async function priorizar() {
     if (!resultado?.procesos.length) return;
+    const senal = cancelacion.iniciar();
     setPriorizando(true);
     setErrorIA(null);
     try {
       setPriorizacion(
-        await api.priorizarProcesos({
-          procesos: resultado.procesos.slice(0, 40),
-          perfilProveedor: espacio.perfilProveedor || null,
-          maximo: 15,
-          ...ia.seleccion,
-        }),
+        await api.priorizarProcesos(
+          {
+            procesos: resultado.procesos.slice(0, 40),
+            perfilProveedor: espacio.perfilProveedor || null,
+            maximo: 15,
+            ...ia.seleccion,
+          },
+          senal,
+        ),
       );
     } catch (excepcion) {
-      setErrorIA(mensajeDeError(excepcion));
+      if (!fueCancelada(senal, excepcion)) setErrorIA(mensajeDeError(excepcion));
     } finally {
       setPriorizando(false);
     }
@@ -226,13 +232,20 @@ export function Buscar() {
           titulo={`Resultados (${resultado.total})`}
           subtitulo={`Conjunto de datos: ${resultado.dataset}`}
           acciones={
-            <button
-              className="secundario"
-              onClick={priorizar}
-              disabled={priorizando || !resultado.procesos.length}
-            >
-              {priorizando ? <Cargando texto="Analizando…" /> : "Priorizar con IA"}
-            </button>
+            <div className="fila">
+              <button
+                className="secundario"
+                onClick={priorizar}
+                disabled={priorizando || !resultado.procesos.length}
+              >
+                {priorizando ? <Cargando texto="Analizando…" /> : "Priorizar con IA"}
+              </button>
+              {priorizando && (
+                <button className="secundario" onClick={cancelacion.cancelar}>
+                  Cancelar
+                </button>
+              )}
+            </div>
           }
         >
           {resultado.advertencias.map((advertencia, indice) => (

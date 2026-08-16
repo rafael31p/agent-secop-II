@@ -59,9 +59,20 @@ export function Etiqueta({
   );
 }
 
+/**
+ * Indicador de operación en curso.
+ *
+ * <p>Lleva `role="status"` porque es el único punto por el que pasan **todas**
+ * las operaciones largas de la aplicación —analizar, generar, validar, buscar,
+ * priorizar—. Anunciarlo aquí las cubre todas de una vez; hacerlo vista por
+ * vista repetiría la misma línea cinco veces y se olvidaría a la sexta.
+ *
+ * <p>El aspa girante va con `aria-hidden`: es decoración, y el texto ya dice lo
+ * que está pasando.
+ */
 export function Cargando({ texto }: { texto: string }) {
   return (
-    <span>
+    <span role="status" aria-live="polite">
       <span className="cargando" aria-hidden="true" />
       {texto}
     </span>

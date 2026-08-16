@@ -5,6 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { fueCancelada, useCancelacion } from "@/lib/cancelacion";
 import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { useIA } from "@/lib/ia";
@@ -35,6 +36,7 @@ export function Proponer() {
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const cancelacion = useCancelacion();
 
   const requisitos = espacio.requisitos;
   const propuesta = espacio.propuesta;
@@ -54,26 +56,30 @@ export function Proponer() {
   }
 
   async function generar() {
+    const senal = cancelacion.iniciar();
     setGenerando(true);
     setError(null);
     try {
       espacio.fijarPropuesta(
-        await api.generarPropuesta({
-          objetoContractual: objeto,
-          perfilProveedor: espacio.perfilProveedor,
-          requisitos,
-          // Con requisitos estructurados el pliego completo solo añade ruido y
-          // consume contexto; sin ellos es la única referencia que hay.
-          textoPliego: requisitos.length ? null : espacio.textoPliego || null,
-          entidad: espacio.procesoSeleccionado?.entidad ?? null,
-          valorEstimado: espacio.procesoSeleccionado?.valor ?? null,
-          plazoMeses: plazo === "" ? null : plazo,
-          enfasis,
-          ...ia.seleccion,
-        }),
+        await api.generarPropuesta(
+          {
+            objetoContractual: objeto,
+            perfilProveedor: espacio.perfilProveedor,
+            requisitos,
+            // Con requisitos estructurados el pliego completo solo añade ruido y
+            // consume contexto; sin ellos es la única referencia que hay.
+            textoPliego: requisitos.length ? null : espacio.textoPliego || null,
+            entidad: espacio.procesoSeleccionado?.entidad ?? null,
+            valorEstimado: espacio.procesoSeleccionado?.valor ?? null,
+            plazoMeses: plazo === "" ? null : plazo,
+            enfasis,
+            ...ia.seleccion,
+          },
+          senal,
+        ),
       );
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion));
+      if (!fueCancelada(senal, excepcion)) setError(mensajeDeError(excepcion));
     } finally {
       setGenerando(false);
     }
@@ -203,6 +209,11 @@ export function Proponer() {
           >
             {generando ? <Cargando texto="Redactando propuesta…" /> : "Generar propuesta"}
           </button>
+          {generando && (
+            <button className="secundario" onClick={cancelacion.cancelar}>
+              Cancelar
+            </button>
+          )}
           {!listoParaGenerar && (
             <span className="tenue">
               Requiere objeto contractual, perfil del oferente ({MINIMO_PERFIL}+

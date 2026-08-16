@@ -15,6 +15,7 @@
   --error-suave: #fbe6e5;
   --radio: 10px;
   --sombra: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 12px rgba(16, 24, 40, 0.05);
+  --foco: #0b5fa5;
   color-scheme: light;
 }
 
@@ -35,12 +36,83 @@
     --error: #f28b82;
     --error-suave: #3b1f1d;
     --sombra: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+    /* Más claro que el acento del modo oscuro: el contorno debe verse sobre
+       superficies oscuras, donde el azul del acento se pierde. */
+    --foco: #8ec5ff;
     color-scheme: dark;
   }
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* ---------- Foco visible ---------- */
+
+/*
+ * Quince líneas que convierten una aplicación inoperable con teclado en una
+ * operable. No había ni una regla de foco: los botones, los enlaces de
+ * navegación y los `summary` definían :hover y nada más, así que quien navega
+ * con teclado no podía saber dónde estaba. Incumplía WCAG 2.2 criterio 2.4.7
+ * (nivel AA), lo cual en una herramienta que analiza requisitos de accesibilidad
+ * de portales públicos era una contradicción incómoda.
+ *
+ * :focus-visible y no :focus, a propósito: así no aparece el contorno al hacer
+ * clic con el ratón, que es la razón habitual por la que alguien lo desactiva y
+ * crea este problema.
+ */
+:where(button, a, summary, [role="button"], input, select, textarea):focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Sobre el azul de acento, el contorno azul no se vería. */
+button.principal:focus-visible {
+  outline-color: #fff;
+  outline-offset: -5px;
+}
+
+@media (prefers-contrast: more) {
+  :where(button, a, summary):focus-visible {
+    outline-width: 4px;
+  }
+}
+
+/* Primer tabulador de la página: saltar la navegación repetida. */
+.saltar-al-contenido {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--superficie);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 0 0 var(--radio) 0;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.saltar-al-contenido:focus {
+  left: 0;
+}
+
+/*
+ * Contenido para lectores de pantalla que no ocupa espacio visual. No se usa
+ * `display: none` ni `visibility: hidden`: eso también lo oculta al lector, que
+ * es justo lo contrario de lo que se busca.
+ */
+.visualmente-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 body {

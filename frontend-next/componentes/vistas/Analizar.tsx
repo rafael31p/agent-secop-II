@@ -5,6 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { fueCancelada, useCancelacion } from "@/lib/cancelacion";
 import { mensajeDeError } from "@/lib/errores";
 import { useEspacio } from "@/lib/estado";
 import { formatearNumero } from "@/lib/formato";
@@ -35,6 +36,7 @@ export function Analizar() {
   const [error, setError] = useState<string | null>(null);
   const [avisoDocumento, setAvisoDocumento] = useState<string | null>(null);
   const entradaArchivo = useRef<HTMLInputElement>(null);
+  const cancelacion = useCancelacion();
 
   // El espacio se restaura del almacenamiento después del primer render, así
   // que el pliego puede llegar más tarde que el montaje de esta vista.
@@ -53,11 +55,12 @@ export function Analizar() {
   }, [espacio.procesoSeleccionado]);
 
   async function subirDocumento(archivo: File) {
+    const senal = cancelacion.iniciar();
     setSubiendo(true);
     setError(null);
     setAvisoDocumento(null);
     try {
-      const documento = await api.cargarDocumento(archivo);
+      const documento = await api.cargarDocumento(archivo, senal);
       setTexto(documento.texto);
       espacio.fijarTextoPliego(documento.texto, documento.nombreArchivo);
       const paginas = documento.paginas ? `, ${documento.paginas} páginas` : "";
@@ -69,7 +72,7 @@ export function Analizar() {
             : ""),
       );
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion));
+      if (!fueCancelada(senal, excepcion)) setError(mensajeDeError(excepcion));
     } finally {
       setSubiendo(false);
       if (entradaArchivo.current) entradaArchivo.current.value = "";
@@ -77,22 +80,26 @@ export function Analizar() {
   }
 
   async function analizar() {
+    const senal = cancelacion.iniciar();
     setAnalizando(true);
     setError(null);
     try {
       espacio.fijarTextoPliego(texto, espacio.origenPliego);
-      const analisis = await api.analizarRequisitos({
-        textoPliego: texto,
-        objetoContractual: objeto || null,
-        entidad: entidad || null,
-        modalidad: modalidad || null,
-        valorEstimado: espacio.procesoSeleccionado?.valor ?? null,
-        contextoProveedor: espacio.perfilProveedor || null,
-        ...ia.seleccion,
-      });
+      const analisis = await api.analizarRequisitos(
+        {
+          textoPliego: texto,
+          objetoContractual: objeto || null,
+          entidad: entidad || null,
+          modalidad: modalidad || null,
+          valorEstimado: espacio.procesoSeleccionado?.valor ?? null,
+          contextoProveedor: espacio.perfilProveedor || null,
+          ...ia.seleccion,
+        },
+        senal,
+      );
       espacio.fijarAnalisis(analisis);
     } catch (excepcion) {
-      setError(mensajeDeError(excepcion));
+      if (!fueCancelada(senal, excepcion)) setError(mensajeDeError(excepcion));
     } finally {
       setAnalizando(false);
     }
@@ -198,6 +205,11 @@ export function Analizar() {
           >
             {analizando ? <Cargando texto="Analizando pliego…" /> : "Analizar requisitos"}
           </button>
+          {(analizando || subiendo) && (
+            <button className="secundario" onClick={cancelacion.cancelar}>
+              Cancelar
+            </button>
+          )}
           {texto && (
             <button
               className="secundario"
