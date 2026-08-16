@@ -35,11 +35,45 @@ public class ValidacionDeArranque {
     @ConfigProperty(name = "quarkus.http.cors.origins")
     Optional<List<String>> origenesCors;
 
+    private final ConfiguracionSeguridad seguridad;
+
+    ValidacionDeArranque(ConfiguracionSeguridad seguridad) {
+        this.seguridad = seguridad;
+    }
+
     void alArrancar(@Observes StartupEvent evento) {
         if (LaunchMode.current() != LaunchMode.NORMAL) {
             return;
         }
         exigirOrigenesCors();
+        exigirClavesDeApi();
+    }
+
+    private void exigirClavesDeApi() {
+        if (!seguridad.autenticacionRequerida()) {
+            throw new IllegalStateException(
+                    "La autenticación está desactivada en producción. Eso deja los "
+                            + "endpoints que llaman al modelo abiertos a cualquiera con "
+                            + "ruta de red, gastando el presupuesto de tokens del "
+                            + "operador. Quita agente.seguridad.autenticacion-requerida "
+                            + "o ponla en true.");
+        }
+        if (seguridad.apiKeys().isEmpty()) {
+            throw new IllegalStateException("""
+                    No hay ninguna clave de API configurada.
+
+                    Sin claves, la autenticación rechazaría todas las peticiones y el \
+                    servicio no serviría para nada. Configura al menos una:
+
+                        AGENTE_SEGURIDAD_API_KEYS_EQUIPO=sha256:<hash de la clave>
+
+                    El hash se genera con:
+
+                        openssl rand -hex 32 | tee /dev/stderr | tr -d '\\n' | sha256sum""");
+        }
+        LOG.infof("Autenticación por clave activa para %d cliente(s): %s",
+                seguridad.apiKeys().size(),
+                String.join(", ", seguridad.apiKeys().keySet()));
     }
 
     private void exigirOrigenesCors() {

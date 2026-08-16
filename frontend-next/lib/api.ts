@@ -26,6 +26,26 @@ import type {
  */
 export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/**
+ * Clave de API con la que el backend identifica a este cliente.
+ *
+ * Solo se envía si está configurada. En desarrollo el backend desactiva la
+ * autenticación, así que no hace falta; en cualquier despliegue real sí, y sin
+ * ella los endpoints que llaman al modelo responden 401.
+ *
+ * Va en `NEXT_PUBLIC_`, lo que significa que **queda embebida en el paquete que
+ * descarga el navegador**. No es un secreto frente al usuario de la aplicación,
+ * y no pretende serlo: sirve para que un tercero sin acceso no gaste el
+ * presupuesto de tokens, no para autenticar personas. Cuando haga falta
+ * distinguir usuarios, el destino es OIDC.
+ */
+const CLAVE_API = process.env.NEXT_PUBLIC_API_KEY ?? "";
+
+/** Cabeceras comunes: la clave, si la hay. */
+function cabecerasDeAutenticacion(): Record<string, string> {
+  return CLAVE_API ? { "X-Api-Key": CLAVE_API } : {};
+}
+
 const NO_HAY_BACKEND =
   "No se pudo contactar el backend. ¿Está corriendo en " +
   (BASE || "el mismo origen") +
@@ -58,6 +78,7 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
         ...(opciones.body instanceof FormData
           ? {}
           : { "Content-Type": "application/json" }),
+        ...cabecerasDeAutenticacion(),
         ...opciones.headers,
       },
     });
@@ -209,7 +230,10 @@ export async function chatStream(
   try {
     respuesta = await fetch(`${BASE}/api/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...cabecerasDeAutenticacion(),
+      },
       body: JSON.stringify(cuerpo),
       signal: senal,
     });
