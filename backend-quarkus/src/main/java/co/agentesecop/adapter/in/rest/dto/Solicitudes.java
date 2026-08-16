@@ -1,6 +1,8 @@
-package co.agentesecop.dominio;
+package co.agentesecop.adapter.in.rest.dto;
 
+import co.agentesecop.domain.shared.Listas;
 import co.agentesecop.dominio.Analisis.RequisitoTecnico;
+import co.agentesecop.dominio.Secop;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,6 +16,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * Cuerpos de petición de la API.
+ *
+ * <p>Viven en el adaptador de entrada y no en el dominio: una solicitud HTTP no es un
+ * concepto de contratación pública, es la forma que toma una petición en este protocolo
+ * concreto. Ahí van también sus anotaciones de validación y de documentación, que son
+ * detalles del contrato.
  *
  * <p>Todas las solicitudes que invocan al modelo llevan {@code proveedor} y
  * {@code modelo} opcionales: si vienen nulos se usa la configuración por defecto del
@@ -137,8 +144,8 @@ public final class Solicitudes {
             implements ConSeleccionIA {
 
         public SolicitudPropuesta {
-            requisitos = Propuestas.sinNulos(requisitos);
-            enfasis = Analisis.vacioSiNulo(enfasis);
+            requisitos = Listas.copiaOVacia(requisitos);
+            enfasis = Listas.copiaOVacia(enfasis);
         }
 
         /** Sin requisitos ni pliego no hay nada contra qué alinear la propuesta. */
@@ -162,7 +169,7 @@ public final class Solicitudes {
             implements ConSeleccionIA {
 
         public SolicitudValidacion {
-            requisitos = Propuestas.sinNulos(requisitos);
+            requisitos = Listas.copiaOVacia(requisitos);
         }
     }
 

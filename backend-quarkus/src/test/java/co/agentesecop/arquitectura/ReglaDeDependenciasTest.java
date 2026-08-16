@@ -45,8 +45,18 @@ import com.tngtech.archunit.library.freeze.FreezingArchRule;
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})
 class ReglaDeDependenciasTest {
 
-    /** Paquetes que hoy hacen de adaptador: entrada HTTP, salida y configuración. */
-    private static final String[] ADAPTADORES = {"..api..", "..ia..", "..secop..", "..config.."};
+    /**
+     * Paquetes que hacen de adaptador: entrada HTTP, salida y configuración.
+     *
+     * <p>Incluye {@code ..adapter..}, la estructura nueva, además de los paquetes viejos.
+     * Añadirlo destapó una dependencia que ya existía y no se veía: {@code AgenteSecop}
+     * recibe los records de solicitud HTTP como parámetros, y mientras esos records
+     * vivieron en el paquete {@code dominio} la regla no tenía nada que señalar. Moverlos
+     * a su sitio no creó la infracción; la hizo visible.
+     */
+    private static final String[] ADAPTADORES = {
+        "..adapter..", "..api..", "..ia..", "..secop..", "..config.."
+    };
 
     /** Bibliotecas que el núcleo no debe conocer. */
     private static final String[] FRAMEWORKS = {

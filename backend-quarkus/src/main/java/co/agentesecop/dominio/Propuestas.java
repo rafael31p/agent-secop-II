@@ -1,7 +1,6 @@
 package co.agentesecop.dominio;
 
-import static co.agentesecop.dominio.Analisis.vacioSiNulo;
-
+import co.agentesecop.domain.shared.Listas;
 import co.agentesecop.dominio.Analisis.RequisitoTecnico;
 import co.agentesecop.domain.model.proposal.EstadoCumplimiento;
 import co.agentesecop.domain.model.proposal.Veredicto;
@@ -23,7 +22,7 @@ public final class Propuestas {
             List<String> requisitosCubiertos) {
 
         public SeccionPropuesta {
-            requisitosCubiertos = vacioSiNulo(requisitosCubiertos);
+            requisitosCubiertos = Listas.copiaOVacia(requisitosCubiertos);
         }
     }
 
@@ -41,9 +40,9 @@ public final class Propuestas {
             String markdown) {
 
         public RespuestaPropuesta {
-            secciones = secciones == null ? List.of() : List.copyOf(secciones);
-            supuestos = vacioSiNulo(supuestos);
-            vaciosDeInformacion = vacioSiNulo(vaciosDeInformacion);
+            secciones = Listas.copiaOVacia(secciones);
+            supuestos = Listas.copiaOVacia(supuestos);
+            vaciosDeInformacion = Listas.copiaOVacia(vaciosDeInformacion);
         }
     }
 
@@ -71,9 +70,9 @@ public final class Propuestas {
             List<String> mejorasPrioritarias) {
 
         public RespuestaValidacion {
-            matriz = matriz == null ? List.of() : List.copyOf(matriz);
-            causalesDeRechazo = vacioSiNulo(causalesDeRechazo);
-            mejorasPrioritarias = vacioSiNulo(mejorasPrioritarias);
+            matriz = Listas.copiaOVacia(matriz);
+            causalesDeRechazo = Listas.copiaOVacia(causalesDeRechazo);
+            mejorasPrioritarias = Listas.copiaOVacia(mejorasPrioritarias);
         }
     }
 
@@ -94,7 +93,7 @@ public final class Propuestas {
             List<String> banderas) {
 
         public ProcesoPriorizado {
-            banderas = vacioSiNulo(banderas);
+            banderas = Listas.copiaOVacia(banderas);
         }
     }
 
@@ -102,12 +101,8 @@ public final class Propuestas {
     public record RespuestaRelevancia(List<ProcesoPriorizado> priorizados, String resumen) {
 
         public RespuestaRelevancia {
-            priorizados = priorizados == null ? List.of() : List.copyOf(priorizados);
+            priorizados = Listas.copiaOVacia(priorizados);
         }
     }
 
-    /** Requisitos usados como referencia al validar; útil para las pruebas. */
-    public static List<RequisitoTecnico> sinNulos(List<RequisitoTecnico> requisitos) {
-        return requisitos == null ? List.of() : List.copyOf(requisitos);
-    }
 }

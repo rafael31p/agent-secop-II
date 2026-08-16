@@ -1,5 +1,6 @@
 package co.agentesecop.dominio;
 
+import co.agentesecop.domain.shared.Listas;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -39,7 +40,7 @@ public final class Secop {
             List<String> senalesTi) {
 
         public ProcesoResumen {
-            senalesTi = senalesTi == null ? List.of() : List.copyOf(senalesTi);
+            senalesTi = Listas.copiaOVacia(senalesTi);
         }
     }
 
@@ -52,8 +53,8 @@ public final class Secop {
             List<String> advertencias) {
 
         public RespuestaProcesos {
-            procesos = procesos == null ? List.of() : List.copyOf(procesos);
-            advertencias = Analisis.vacioSiNulo(advertencias);
+            procesos = Listas.copiaOVacia(procesos);
+            advertencias = Listas.copiaOVacia(advertencias);
         }
     }
 

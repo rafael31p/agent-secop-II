@@ -1,6 +1,6 @@
 package co.agentesecop.api;
 
-import co.agentesecop.dominio.Solicitudes.SolicitudChat;
+import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudChat;
 import co.agentesecop.ia.ErroresIA;
 import co.agentesecop.servicio.AgenteSecop;
 import io.smallrye.common.annotation.Blocking;

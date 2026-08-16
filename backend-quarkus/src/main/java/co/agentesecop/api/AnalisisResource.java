@@ -2,7 +2,7 @@ package co.agentesecop.api;
 
 import co.agentesecop.dominio.Analisis.RespuestaAnalisis;
 import co.agentesecop.dominio.Secop.RespuestaDocumento;
-import co.agentesecop.dominio.Solicitudes.SolicitudAnalisis;
+import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudAnalisis;
 import co.agentesecop.servicio.AgenteSecop;
 import co.agentesecop.servicio.ExtractorDocumentos;
 import jakarta.inject.Inject;

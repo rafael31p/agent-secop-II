@@ -2,7 +2,7 @@ package co.agentesecop.secop;
 
 import co.agentesecop.dominio.Secop.ProcesoResumen;
 import co.agentesecop.dominio.Secop.RespuestaProcesos;
-import co.agentesecop.dominio.Solicitudes.FiltroProcesos;
+import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;

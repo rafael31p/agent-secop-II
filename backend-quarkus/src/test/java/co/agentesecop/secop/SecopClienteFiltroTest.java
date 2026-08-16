@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import co.agentesecop.dominio.Solicitudes.FiltroProcesos;
+import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

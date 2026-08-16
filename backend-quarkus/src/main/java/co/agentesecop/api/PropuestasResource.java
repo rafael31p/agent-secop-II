@@ -2,8 +2,8 @@ package co.agentesecop.api;
 
 import co.agentesecop.dominio.Propuestas.RespuestaPropuesta;
 import co.agentesecop.dominio.Propuestas.RespuestaValidacion;
-import co.agentesecop.dominio.Solicitudes.SolicitudPropuesta;
-import co.agentesecop.dominio.Solicitudes.SolicitudValidacion;
+import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudPropuesta;
+import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudValidacion;
 import co.agentesecop.servicio.AgenteSecop;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;

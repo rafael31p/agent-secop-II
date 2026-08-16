@@ -3,6 +3,7 @@ package co.agentesecop.dominio;
 import co.agentesecop.domain.model.tender.Criticidad;
 import co.agentesecop.domain.model.tender.NivelRiesgo;
 import co.agentesecop.domain.model.tender.TipoRiesgo;
+import co.agentesecop.domain.shared.Listas;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -64,16 +65,13 @@ public final class Analisis {
 
         /** Normaliza las listas nulas para que el frontend nunca reciba {@code null}. */
         public RespuestaAnalisis {
-            requisitos = requisitos == null ? List.of() : List.copyOf(requisitos);
-            riesgos = riesgos == null ? List.of() : List.copyOf(riesgos);
-            criteriosEvaluacion = vacioSiNulo(criteriosEvaluacion);
-            documentosHabilitantes = vacioSiNulo(documentosHabilitantes);
-            preguntasALaEntidad = vacioSiNulo(preguntasALaEntidad);
-            alertasNormativas = vacioSiNulo(alertasNormativas);
+            requisitos = Listas.copiaOVacia(requisitos);
+            riesgos = Listas.copiaOVacia(riesgos);
+            criteriosEvaluacion = Listas.copiaOVacia(criteriosEvaluacion);
+            documentosHabilitantes = Listas.copiaOVacia(documentosHabilitantes);
+            preguntasALaEntidad = Listas.copiaOVacia(preguntasALaEntidad);
+            alertasNormativas = Listas.copiaOVacia(alertasNormativas);
         }
     }
 
-    static List<String> vacioSiNulo(List<String> lista) {
-        return lista == null ? List.of() : List.copyOf(lista);
-    }
 }
