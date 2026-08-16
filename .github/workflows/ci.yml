@@ -98,7 +98,18 @@ jobs:
           # el último commit sigue estando en los anteriores.
           fetch-depth: 0
 
+      # Se invoca el binario en lugar de la acción oficial. La acción calcula el
+      # rango a analizar como `<primero>^..<último>`, y en el primer empuje de un
+      # repositorio el commit inicial no tiene padre: el rango es inválido y el
+      # análisis falla sin haber mirado nada. `detect --source .` recorre el
+      # historial completo, que además es lo que se quiere: una credencial
+      # retirada en el último commit sigue estando en los anteriores.
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: 8.24.3
+        run: |
+          set -euo pipefail
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --redact --verbose --exit-code 1
