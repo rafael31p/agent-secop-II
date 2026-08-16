@@ -1,8 +1,8 @@
 package co.agentesecop.dominio;
 
-import co.agentesecop.dominio.Enumeraciones.Criticidad;
-import co.agentesecop.dominio.Enumeraciones.NivelRiesgo;
-import co.agentesecop.dominio.Enumeraciones.TipoRiesgo;
+import co.agentesecop.domain.model.tender.Criticidad;
+import co.agentesecop.domain.model.tender.NivelRiesgo;
+import co.agentesecop.domain.model.tender.TipoRiesgo;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;

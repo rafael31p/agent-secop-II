@@ -3,9 +3,9 @@ package co.agentesecop.dominio;
 import static co.agentesecop.dominio.Analisis.vacioSiNulo;
 
 import co.agentesecop.dominio.Analisis.RequisitoTecnico;
-import co.agentesecop.dominio.Enumeraciones.Criticidad;
-import co.agentesecop.dominio.Enumeraciones.EstadoCumplimiento;
-import co.agentesecop.dominio.Enumeraciones.Veredicto;
+import co.agentesecop.domain.model.proposal.EstadoCumplimiento;
+import co.agentesecop.domain.model.proposal.Veredicto;
+import co.agentesecop.domain.model.tender.Criticidad;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;

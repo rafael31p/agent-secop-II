@@ -22,22 +22,23 @@ import com.tngtech.archunit.library.freeze.FreezingArchRule;
  * quedaría rota durante las 8–12 jornadas de la fase 2, y una compilación rota de forma
  * permanente es una que se ignora.
  *
- * <h2>Por qué los nombres de paquete son los de hoy</h2>
+ * <h2>Dos juegos de reglas, a propósito</h2>
  *
- * <p>SPEC-BE-01 escribe las reglas contra la estructura de destino
- * ({@code domain} / {@code application} / {@code adapter}), que todavía no existe. Una
- * regla sobre un paquete inexistente no tiene nada que examinar: pasaría siempre y
- * congelaría cero infracciones, que es justo lo que no se quiere de esta fase.
+ * <p>La fase 2 está en curso, así que conviven la estructura vieja y la nueva. Se vigilan
+ * de forma distinta:
  *
- * <p>Se expresan por tanto sobre los paquetes actuales, con la correspondencia:
+ * <ul>
+ *   <li><b>{@code domain} —la nueva— con reglas sin congelar.</b> Nace limpia y cada tipo
+ *       que se traslade allí entra por esa puerta: si arrastra una anotación de framework,
+ *       la compilación falla en el acto.
+ *   <li><b>{@code dominio} y {@code servicio} —las viejas— con reglas congeladas.</b>
+ *       Admiten la deuda que ya existía, que no puede crecer y va bajando conforme la
+ *       fase 2 traslada tipos. La correspondencia con la estructura de destino es
+ *       {@code dominio → domain}, {@code servicio → application} y
+ *       {@code api, ia, secop, config → adapter}.
+ * </ul>
  *
- * <pre>
- *   dominio                     →  domain       (núcleo, no debe conocer a nadie)
- *   servicio                    →  application  (casos de uso)
- *   api, ia, secop, config      →  adapter      (entrada, salida y configuración)
- * </pre>
- *
- * <p>Cuando la fase 2 mueva los paquetes, se renombran aquí y el almacén se regenera.
+ * <p>Cuando no quede nada en los paquetes viejos, sus reglas y el almacén desaparecen.
  */
 @AnalyzeClasses(
         packages = "co.agentesecop",
@@ -46,6 +47,40 @@ class ReglaDeDependenciasTest {
 
     /** Paquetes que hoy hacen de adaptador: entrada HTTP, salida y configuración. */
     private static final String[] ADAPTADORES = {"..api..", "..ia..", "..secop..", "..config.."};
+
+    /** Bibliotecas que el núcleo no debe conocer. */
+    private static final String[] FRAMEWORKS = {
+        "com.fasterxml..",
+        "jakarta..",
+        "io.quarkus..",
+        "io.smallrye..",
+        "org.eclipse.microprofile..",
+        "dev.langchain4j.."
+    };
+
+    /**
+     * El dominio nuevo nace puro y <strong>no se congela</strong>.
+     *
+     * <p>Es la diferencia importante respecto a las reglas de abajo: aquellas admiten la
+     * deuda que ya existía, esta no admite ninguna. Cada tipo que la fase 2 traslade a
+     * {@code domain} entra por esta puerta, y si trae una anotación de framework encima,
+     * la compilación falla en el acto en lugar de sumarse a una lista.
+     */
+    @ArchTest
+    static final ArchRule elDominioNuevoEsPuro = noClasses()
+            .that().resideInAPackage("..domain..")
+            .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORKS)
+            .because("lo que se mueve a domain/ ya no puede arrastrar frameworks "
+                    + "(SPEC-BE-01 §3.3)");
+
+    /** Y tampoco conoce lo que lo rodea, en ninguna de sus formas. */
+    @ArchTest
+    static final ArchRule elDominioNuevoNoConoceElResto = noClasses()
+            .that().resideInAPackage("..domain..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "..adapter..", "..application..", "..dominio..",
+                    "..api..", "..ia..", "..secop..", "..servicio..", "..config..")
+            .because("las dependencias apuntan hacia adentro (SPEC-BE-01 §2)");
 
     /**
      * El núcleo no depende de ningún framework.
@@ -60,13 +95,7 @@ class ReglaDeDependenciasTest {
     static final ArchRule elDominioNoConoceFrameworks = FreezingArchRule.freeze(
             noClasses()
                     .that().resideInAPackage("..dominio..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "com.fasterxml..",
-                            "jakarta..",
-                            "io.quarkus..",
-                            "io.smallrye..",
-                            "org.eclipse.microprofile..",
-                            "dev.langchain4j..")
+                    .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORKS)
                     .because("el núcleo de contratación pública debe compilar sin "
                             + "bibliotecas de serialización ni de HTTP (SPEC-BE-01 §1)"));
 
