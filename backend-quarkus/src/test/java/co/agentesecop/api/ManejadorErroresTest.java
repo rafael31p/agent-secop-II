@@ -5,7 +5,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 import co.agentesecop.ia.ErroresIA;
-import co.agentesecop.servicio.AgenteSecop;
+import co.agentesecop.application.port.in.AnalizarPliego;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -24,14 +24,14 @@ import org.mockito.Mockito;
 class ManejadorErroresTest {
 
     @InjectMock
-    AgenteSecop agente;
+    AnalizarPliego analizarPliego;
 
     private static final String CUERPO_VALIDO = """
             {"textoPliego": "%s", "objetoContractual": "Portal web"}
             """.formatted("Anexo tecnico con requisitos de accesibilidad. ".repeat(3));
 
     private void cuandoElAgenteLanza(RuntimeException error) {
-        Mockito.when(agente.analizarRequisitos(Mockito.any())).thenThrow(error);
+        Mockito.when(analizarPliego.analizar(Mockito.any())).thenThrow(error);
     }
 
     @Test
@@ -116,7 +116,7 @@ class ManejadorErroresTest {
                 .then().statusCode(422)
                 .body("detail", containsString("entre 40 y 400.000 caracteres"));
 
-        Mockito.verifyNoInteractions(agente);
+        Mockito.verifyNoInteractions(analizarPliego);
     }
 
     @Test
@@ -132,7 +132,7 @@ class ManejadorErroresTest {
                 .then().statusCode(422)
                 .body("detail", containsString("400.000 caracteres"));
 
-        Mockito.verifyNoInteractions(agente);
+        Mockito.verifyNoInteractions(analizarPliego);
     }
 
     @Test
@@ -146,6 +146,6 @@ class ManejadorErroresTest {
                 .then().statusCode(422)
                 .body("detail", containsString("modelo"));
 
-        Mockito.verifyNoInteractions(agente);
+        Mockito.verifyNoInteractions(analizarPliego);
     }
 }

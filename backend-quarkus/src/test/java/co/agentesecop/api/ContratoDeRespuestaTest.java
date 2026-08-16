@@ -20,7 +20,10 @@ import co.agentesecop.domain.model.proposal.Veredicto;
 import co.agentesecop.domain.model.tender.Criticidad;
 import co.agentesecop.domain.model.tender.NivelRiesgo;
 import co.agentesecop.domain.model.tender.TipoRiesgo;
-import co.agentesecop.servicio.AgenteSecop;
+import co.agentesecop.application.port.in.AnalizarPliego;
+import co.agentesecop.application.port.in.GenerarPropuesta;
+import co.agentesecop.application.port.in.PriorizarProcesos;
+import co.agentesecop.application.port.in.ValidarPropuesta;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
@@ -46,22 +49,31 @@ import org.mockito.Mockito;
  * traslado, a propósito, para que caracterice el comportamiento actual y no el que
  * resulte.
  *
- * <p>El agente se sustituye por un doble: aquí se comprueba la forma de la respuesta, no
- * lo que dice el modelo.
+ * <p>Los casos de uso se sustituyen por dobles: aquí se comprueba la forma de la
+ * respuesta, no lo que dice el modelo.
  */
 @QuarkusTest
 @TestProfile(PerfilSinCredenciales.class)
 class ContratoDeRespuestaTest {
 
     @InjectMock
-    AgenteSecop agente;
+    AnalizarPliego analizarPliego;
+
+    @InjectMock
+    GenerarPropuesta generarPropuesta;
+
+    @InjectMock
+    ValidarPropuesta validarPropuesta;
+
+    @InjectMock
+    PriorizarProcesos priorizarProcesos;
 
     private static final String PLIEGO = "x".repeat(60);
 
     @Test
     @DisplayName("El análisis conserva los nombres de campo y los códigos de enumeración")
     void contratoDelAnalisis() {
-        Mockito.when(agente.analizarRequisitos(Mockito.any())).thenReturn(new AnalisisDePliego(
+        Mockito.when(analizarPliego.analizar(Mockito.any())).thenReturn(new AnalisisDePliego(
                 "Resumen ejecutivo",
                 "Objeto normalizado",
                 List.of(new RequisitoTecnico("RT-01", "Seguridad", "Cifrado en reposo",
@@ -102,7 +114,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("Una lista ausente sale como lista vacía, nunca como null")
     void listasNuncaNulas() {
-        Mockito.when(agente.analizarRequisitos(Mockito.any())).thenReturn(new AnalisisDePliego(
+        Mockito.when(analizarPliego.analizar(Mockito.any())).thenReturn(new AnalisisDePliego(
                 "r", null, null, null, null, null, null, null, "rec"));
 
         given().contentType(ContentType.JSON)
@@ -117,7 +129,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("La propuesta conserva sus nombres de campo")
     void contratoDeLaPropuesta() {
-        Mockito.when(agente.generarPropuesta(Mockito.any())).thenReturn(new Propuesta(
+        Mockito.when(generarPropuesta.generar(Mockito.any())).thenReturn(new Propuesta(
                 "Título",
                 "Resumen",
                 List.of(new SeccionPropuesta("Sección", "Contenido", List.of("RT-01"))),
@@ -145,7 +157,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("La validación conserva sus nombres de campo y su veredicto")
     void contratoDeLaValidacion() {
-        Mockito.when(agente.validarPropuesta(Mockito.any())).thenReturn(new InformeDeCumplimiento(
+        Mockito.when(validarPropuesta.validar(Mockito.any())).thenReturn(new InformeDeCumplimiento(
                 87,
                 Veredicto.APTA_CON_AJUSTES,
                 "Resumen",
@@ -177,7 +189,7 @@ class ContratoDeRespuestaTest {
     @Test
     @DisplayName("La priorización conserva sus nombres de campo")
     void contratoDeLaPriorizacion() {
-        Mockito.when(agente.priorizarProcesos(Mockito.any())).thenReturn(new Priorizacion(
+        Mockito.when(priorizarProcesos.priorizar(Mockito.any())).thenReturn(new Priorizacion(
                 List.of(new ProcesoPriorizado("CO1", "Objeto", "Entidad", 1000.0, 90,
                         "Desarrollo de software", "Justificación", "Encaje",
                         List.of("Bandera"))),

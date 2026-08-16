@@ -9,7 +9,8 @@ import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudRelevancia;
 import co.agentesecop.ia.ErroresIA;
 import co.agentesecop.secop.SecopCliente;
-import co.agentesecop.servicio.AgenteSecop;
+import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
+import co.agentesecop.application.port.in.PriorizarProcesos;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -32,12 +33,12 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 public class ProcesosResource {
 
     private final SecopCliente secop;
-    private final AgenteSecop agente;
+    private final PriorizarProcesos priorizarProcesos;
 
     @Inject
-    public ProcesosResource(SecopCliente secop, AgenteSecop agente) {
+    public ProcesosResource(SecopCliente secop, PriorizarProcesos priorizarProcesos) {
         this.secop = secop;
-        this.agente = agente;
+        this.priorizarProcesos = priorizarProcesos;
     }
 
     @POST
@@ -75,6 +76,6 @@ public class ProcesosResource {
         if (solicitud.procesos().isEmpty()) {
             throw new ErroresIA.PeticionInvalida("Envía al menos un proceso para priorizar.");
         }
-        return PropuestasMapper.aDto(agente.priorizarProcesos(solicitud));
+        return PropuestasMapper.aDto(priorizarProcesos.priorizar(ComandosMapper.aComando(solicitud)));
     }
 }

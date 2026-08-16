@@ -5,7 +5,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import co.agentesecop.servicio.AgenteSecop;
+import co.agentesecop.application.port.in.AnalizarPliego;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.QuarkusTestProfile;
@@ -50,7 +50,7 @@ class SeguridadTest {
     }
 
     @InjectMock
-    AgenteSecop agente;
+    AnalizarPliego analizarPliego;
 
     @Test
     @DisplayName("Sin clave: 401 y el modelo no se llega a invocar")
@@ -65,7 +65,7 @@ class SeguridadTest {
                 .body("correlationId", notNullValue());
 
         // Lo esencial: se rechazó antes de gastar nada.
-        Mockito.verifyNoInteractions(agente);
+        Mockito.verifyNoInteractions(analizarPliego);
     }
 
     @Test
@@ -79,7 +79,7 @@ class SeguridadTest {
                 .when().post("/api/analisis/requisitos")
                 .then().statusCode(401);
 
-        Mockito.verifyNoInteractions(agente);
+        Mockito.verifyNoInteractions(analizarPliego);
     }
 
     @Test
@@ -92,7 +92,7 @@ class SeguridadTest {
     @Test
     @DisplayName("Con la clave correcta la petición llega al agente")
     void claveCorrecta() {
-        Mockito.when(agente.analizarRequisitos(Mockito.any()))
+        Mockito.when(analizarPliego.analizar(Mockito.any()))
                 .thenThrow(new co.agentesecop.ia.ErroresIA.ProveedorNoConfigurado("sin clave"));
 
         given().contentType(ContentType.JSON)
@@ -105,7 +105,7 @@ class SeguridadTest {
                 // justo lo que se quiere demostrar.
                 .then().statusCode(503);
 
-        Mockito.verify(agente).analizarRequisitos(Mockito.any());
+        Mockito.verify(analizarPliego).analizar(Mockito.any());
     }
 
     @Test

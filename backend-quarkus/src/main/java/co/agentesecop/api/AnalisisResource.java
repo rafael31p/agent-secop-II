@@ -5,7 +5,8 @@ import co.agentesecop.adapter.in.rest.mapper.AnalisisMapper;
 import co.agentesecop.adapter.in.rest.dto.ProcesosDto.RespuestaDocumento;
 import co.agentesecop.adapter.in.rest.mapper.ProcesosMapper;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudAnalisis;
-import co.agentesecop.servicio.AgenteSecop;
+import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
+import co.agentesecop.application.port.in.AnalizarPliego;
 import co.agentesecop.servicio.ExtractorDocumentos;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -25,12 +26,12 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 @Tag(name = "analisis", description = "Extracción de requisitos técnicos del pliego")
 public class AnalisisResource {
 
-    private final AgenteSecop agente;
+    private final AnalizarPliego analizarPliego;
     private final ExtractorDocumentos extractor;
 
     @Inject
-    public AnalisisResource(AgenteSecop agente, ExtractorDocumentos extractor) {
-        this.agente = agente;
+    public AnalisisResource(AnalizarPliego analizarPliego, ExtractorDocumentos extractor) {
+        this.analizarPliego = analizarPliego;
         this.extractor = extractor;
     }
 
@@ -39,7 +40,7 @@ public class AnalisisResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Operation(summary = "Extrae requisitos, riesgos y alertas normativas del material")
     public RespuestaAnalisis analizar(@Valid SolicitudAnalisis solicitud) {
-        return AnalisisMapper.aDto(agente.analizarRequisitos(solicitud));
+        return AnalisisMapper.aDto(analizarPliego.analizar(ComandosMapper.aComando(solicitud)));
     }
 
     @POST

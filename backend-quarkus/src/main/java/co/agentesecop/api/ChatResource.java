@@ -2,7 +2,8 @@ package co.agentesecop.api;
 
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudChat;
 import co.agentesecop.ia.ErroresIA;
-import co.agentesecop.servicio.AgenteSecop;
+import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
+import co.agentesecop.application.port.in.ConversarConElAgente;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
@@ -38,11 +39,11 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Tag(name = "chat", description = "Consulta libre al agente experto")
 public class ChatResource {
 
-    private final AgenteSecop agente;
+    private final ConversarConElAgente conversar;
 
     @Inject
-    public ChatResource(AgenteSecop agente) {
-        this.agente = agente;
+    public ChatResource(ConversarConElAgente conversar) {
+        this.conversar = conversar;
     }
 
     @POST
@@ -53,7 +54,7 @@ public class ChatResource {
     public Multi<OutboundSseEvent> chat(@Valid SolicitudChat solicitud, @Context Sse sse) {
         Multi<OutboundSseEvent> fragmentos;
         try {
-            fragmentos = agente.chat(solicitud)
+            fragmentos = conversar.conversar(ComandosMapper.aComando(solicitud))
                     .map(texto -> evento(sse, "delta", Map.of("texto", texto)));
         } catch (ErroresIA.ErrorAgente error) {
             // El proveedor puede fallar antes de abrir el flujo (clave ausente, modelo

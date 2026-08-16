@@ -5,7 +5,9 @@ import co.agentesecop.adapter.in.rest.dto.PropuestasDto.RespuestaValidacion;
 import co.agentesecop.adapter.in.rest.mapper.PropuestasMapper;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudPropuesta;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudValidacion;
-import co.agentesecop.servicio.AgenteSecop;
+import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
+import co.agentesecop.application.port.in.GenerarPropuesta;
+import co.agentesecop.application.port.in.ValidarPropuesta;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -23,24 +25,27 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Tag(name = "propuestas", description = "Redacción y verificación de propuestas")
 public class PropuestasResource {
 
-    private final AgenteSecop agente;
+    private final GenerarPropuesta generarPropuesta;
+    private final ValidarPropuesta validarPropuesta;
 
     @Inject
-    public PropuestasResource(AgenteSecop agente) {
-        this.agente = agente;
+    public PropuestasResource(
+            GenerarPropuesta generarPropuesta, ValidarPropuesta validarPropuesta) {
+        this.generarPropuesta = generarPropuesta;
+        this.validarPropuesta = validarPropuesta;
     }
 
     @POST
     @Path("/generar")
     @Operation(summary = "Redacta un borrador de propuesta alineado al pliego")
     public RespuestaPropuesta generar(@Valid SolicitudPropuesta solicitud) {
-        return PropuestasMapper.aDto(agente.generarPropuesta(solicitud));
+        return PropuestasMapper.aDto(generarPropuesta.generar(ComandosMapper.aComando(solicitud)));
     }
 
     @POST
     @Path("/validar")
     @Operation(summary = "Compara la propuesta contra los requisitos del proceso")
     public RespuestaValidacion validar(@Valid SolicitudValidacion solicitud) {
-        return PropuestasMapper.aDto(agente.validarPropuesta(solicitud));
+        return PropuestasMapper.aDto(validarPropuesta.validar(ComandosMapper.aComando(solicitud)));
     }
 }
