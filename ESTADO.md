@@ -1,4 +1,4 @@
-# Estado del proyecto — 15 de agosto de 2026
+# Estado del proyecto — 15 de agosto de 2026 (noche)
 
 Punto de retomada para la próxima sesión.
 
@@ -17,6 +17,42 @@ el frontend viejo solo funciona contra el backend viejo. Se descubrió al empeza
 migración, comparando `frontend/src/types.ts` con los records de `dominio/`.
 
 Ambos backends usan el puerto 8000: solo uno a la vez.
+
+## Fases 0 y 1 del plan de mejora: ejecutadas
+
+El repositorio ya es git, con CI, y las dos fases de mayor valor del
+[plan](specs/01-PLAN-DE-MEJORA.md) están hechas. Publicado en GitHub bajo GPL-3.0.
+
+**Fase 0 · Red de seguridad**
+
+| | Qué quedó |
+|---|---|
+| 0.1 | Primer commit con las suites en verde; verificado que los `.env` no entran |
+| 0.2 | `backend/` y `frontend/` fuera del tronco, recuperables en `v0.2.0-legacy` |
+| 0.3 | CI con `mvnw verify`, tipos, lint, formato, pruebas, compilación y gitleaks |
+| 0.4 | ESLint y Prettier, **en modo aviso**; 8 avisos contados, ninguno silenciado |
+| 0.5 | ArchUnit con las infracciones congeladas: la deuda no puede crecer |
+
+**Fase 1 · Contención del daño** — los cuatro hallazgos críticos, cerrados:
+
+| | Qué quedó |
+|---|---|
+| 1.1 | Ningún texto de un sistema externo llega al navegador; identificador de error en su lugar |
+| 1.2 | Cotas de entrada por caso de uso, rechazadas con 422 antes de construir nada |
+| 1.3 | Identificador de modelo validado y caché de modelos acotada |
+| 1.4 | `@Blocking` en el chat: ya no se bloquea el bucle de eventos |
+| 1.5 | CORS por perfil, con fallo al arrancar en producción si falta |
+| 1.6 | Clave de API y límite de consumo por clave y hora |
+| 1.7 | `error.tsx` y `global-error.tsx`, con rescate del espacio de trabajo |
+| 1.8 | Timeout y cancelación en todas las llamadas, con botón «Cancelar» |
+| 1.9 | Foco visible (`:focus-visible`) y salto al contenido |
+| 1.10 | `aria-live` en el chat y `role="status"` en las operaciones largas |
+
+Estado de las suites: **102/102 backend · 74/74 frontend**.
+
+Verificado en el navegador tras los cambios: búsqueda, cancelación de una
+priorización sin dejar error, chat en streaming completo, foco visible con
+teclado y atributos ARIA presentes en el DOM.
 
 ## Frontend Next.js: cerrado
 
@@ -91,11 +127,29 @@ python verificar_en_vivo.py                    # en otra terminal
 
 ## Pendiente
 
-1. **Decidir cuándo borrar `backend/` y `frontend/`** (las versiones Python y Vite). Las dos
-   están cubiertas por las nuevas y verificadas; conservarlas solo tiene sentido mientras
-   sirvan de referencia. Es una decisión del usuario, no se ha tocado nada.
-2. El repositorio **no es un repositorio git**. Si se va a versionar, `git init` antes de
-   seguir: el `.gitignore` ya está preparado (cubre `.env`, `target/`, `.next/`,
-   `node_modules/`).
-3. Opcional: el frontend no tiene ESLint configurado. `next lint` desapareció en Next 16,
-   así que habría que instalar `eslint` y `eslint-config-next` a mano.
+Lo que sigue del plan, en orden:
+
+1. **Fase 2 · Arquitectura hexagonal** (8-12 jornadas). La más invasiva. Empieza por
+   extraer `domain/` sin anotaciones de framework, que es lo que hace bajar el almacén
+   de ArchUnit de 459 a cero.
+2. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Va después de la 2 a
+   propósito: los decoradores se aplican sobre puertos que aún no existen.
+3. **Fase 4 · Frontend** (6-10 jornadas). Incluye `useAsyncAction`, que absorbe la
+   cancelación que la fase 1 dejó a medio camino, y persistir búsqueda y validación.
+4. **Fase 5 · Documentación y diagramas**, y **Fase 6 · Migración a inglés**.
+
+Y un asunto que el plan marca como **bloqueante y no técnico**: `SPEC-NT-02` (qué datos
+salen hacia terceros, con qué base y con qué aviso). Hasta que esté decidido y comunicado,
+la herramienta no debería usarse con un pliego real de un cliente real.
+
+## Deuda registrada, para que no se olvide
+
+- **ArchUnit congela 482 infracciones** (459 de `dominio → frameworks`, 23 de
+  `servicio → adaptadores`). Están en `src/test/resources/archunit_store` y la fase 2 las
+  va borrando. Subieron de 381 a 482 en la fase 1, al añadir las cotas de validación a los
+  records del dominio: es deuda deliberada, consecuencia de contener antes de reestructurar.
+- **ESLint deja 8 avisos**, siete del mismo patrón: restaurar estado en un efecto. Es
+  correcto para algo que no existe durante el render en servidor, y aun así encadena
+  renders; lo paga el reducer de los puntos 4.2 y 4.3.
+- **El límite de tasa es por instancia**, porque su estado vive en memoria. Con un solo
+  proceso es exacto; escalar horizontalmente exigiría un almacén compartido.

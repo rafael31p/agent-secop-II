@@ -38,6 +38,10 @@ agent-secop-II/
 └── specs/              Diagnóstico y plan de mejora
 ```
 
+`specs/` contiene un diagnóstico de 47 hallazgos y un plan de mejora en siete fases. Las
+fases 0 y 1 —red de seguridad y contención del daño— ya están ejecutadas; el estado
+detallado está en [`ESTADO.md`](ESTADO.md).
+
 El proyecto nació como FastAPI + React/Vite y se migró a esta pila. Esas versiones
 anteriores se retiraron del tronco pero siguen recuperables:
 
@@ -91,15 +95,17 @@ Docs interactivas: http://localhost:8000/docs
 ```bash
 cd frontend-next
 npm install
-cp .env.local.example .env.local    # solo si el backend no está en localhost:8000
+cp .env.local.example .env.local    # si el backend no está en localhost:8000
+                                    # o si exige clave de API
 npm run dev
 ```
 
 App: http://localhost:3000
 
 El frontend llama al backend **directamente**, no por un proxy: un intermediario puede
-almacenar en búfer la respuesta del chat y romper el streaming. El CORS del backend ya
-autoriza los puertos 3000 y 5173.
+almacenar en búfer la respuesta del chat y romper el streaming. En desarrollo el backend
+ya autoriza por CORS el puerto 3000; en producción hay que declararlo en
+`AGENTE_CORS_ORIGINS`.
 
 ---
 
@@ -150,6 +156,35 @@ positivos con el umbral por defecto.
 | `POST` | `/api/propuestas/validar` | Valida propuesta vs. requisitos |
 | `POST` | `/api/chat` | Chat con el agente experto (streaming SSE) |
 
+### Autenticación y límites
+
+Los endpoints que llaman al modelo exigen la cabecera `X-Api-Key`. `/api/salud` y
+`/api/proveedores` quedan abiertos: el frontend los consulta antes de tener contexto y no
+gastan nada.
+
+```properties
+# Se guardan hashes, no claves: quien lea esta configuración no obtiene con qué llamar.
+agente.seguridad.api-keys.equipo=sha256:<hash>
+```
+
+```bash
+# Generar una clave y su hash
+openssl rand -hex 32 | tee /dev/stderr | tr -d '\n' | sha256sum
+```
+
+En `quarkus:dev` la autenticación está desactivada para no estorbar. En producción es
+obligatoria y **el arranque falla** si no hay ninguna clave configurada o si falta
+`AGENTE_CORS_ORIGINS`; se prefiere no arrancar a arrancar abierto sin saberlo.
+
+Cada clave tiene un límite por hora y operación (20 análisis, 15 validaciones, 100
+mensajes de chat…), configurable en `agente.seguridad.limites.*`. Al superarlo se
+devuelve `429` con `Retry-After`.
+
+Conviene tener presente qué **no** es esto: CORS lo aplica el navegador y `curl` lo
+ignora, así que quien protege el presupuesto de tokens es la clave, no el CORS. Y la
+clave identifica a un cliente, no a una persona: sirve para controlar el gasto, no para
+auditar quién analizó qué. El día que haga falta lo segundo, el destino es OIDC.
+
 ### Manejo de errores del proveedor
 
 Los planes gratuitos devuelven `503` y `429` con frecuencia. El agente reintenta con
@@ -164,7 +199,13 @@ al cliente **con su explicación**, no como un `500` genérico
 | Cuota agotada | `429` | Que espere o revise su plan |
 | Servicio caído / modelo inexistente | `404`/`502` | Qué modelo falló y cómo listarlos |
 | Filtro de contenido o respuesta truncada | `422` | Por qué se detuvo la generación |
-| Pliego demasiado grande | `413` | El tamaño y el límite |
+| Pliego demasiado grande | `422` | El tamaño admitido y qué hacer |
+
+**Ningún texto originado en un sistema externo llega al navegador.** El detalle del
+proveedor va al registro junto a un identificador que sí viaja en la respuesta
+(`correlationId`), y el usuario lo cita al reportar el fallo. No es pudor: la API de
+Google AI lleva la clave en la cadena de consulta, así que un error que incluya la URL
+incluye la credencial.
 
 ---
 
@@ -172,16 +213,23 @@ al cliente **con su explicación**, no como un `500` genérico
 
 ```bash
 cd backend-quarkus
-./mvnw test                    # 88 pruebas, sin red ni credenciales
+./mvnw test                    # 102 pruebas, sin red ni credenciales
 python verificar_en_vivo.py    # extremo a extremo contra el servidor levantado
 ```
 
 ```bash
 cd frontend-next
-npm test                       # 64 pruebas (Vitest + Testing Library)
+npm test                       # 74 pruebas (Vitest + Testing Library)
 npm run typecheck
+npm run lint
 npm run build
 ```
+
+Todo eso corre en CI en cada empuje, más `gitleaks` sobre el historial completo.
+
+La regla de dependencias de la arquitectura se verifica con ArchUnit, con las
+infracciones actuales congeladas en `src/test/resources/archunit_store`: la deuda está
+registrada y **no puede crecer**, aunque todavía no se haya pagado.
 
 Las pruebas del backend usan **WireMock como librería en la misma JVM** en lugar de
 Testcontainers, porque el entorno de desarrollo no tiene Docker.
