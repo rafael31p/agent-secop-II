@@ -114,7 +114,37 @@ class ManejadorErroresTest {
                 .body("{\"textoPliego\": \"muy corto\"}")
                 .when().post("/api/analisis/requisitos")
                 .then().statusCode(422)
-                .body("detail", containsString("40 caracteres"));
+                .body("detail", containsString("entre 40 y 400.000 caracteres"));
+
+        Mockito.verifyNoInteractions(agente);
+    }
+
+    @Test
+    @DisplayName("Un pliego enorme se rechaza en la frontera, sin llamar al modelo")
+    void pliegoDemasiadoGrande() {
+        // El punto de la cota: rechazar con 422 antes de construir el prompt, serializar
+        // el contexto y facturar una llamada que iba a fallar en el proveedor.
+        String enorme = "a".repeat(900_000);
+
+        given().contentType(ContentType.JSON)
+                .body("{\"textoPliego\": \"" + enorme + "\"}")
+                .when().post("/api/analisis/requisitos")
+                .then().statusCode(422)
+                .body("detail", containsString("400.000 caracteres"));
+
+        Mockito.verifyNoInteractions(agente);
+    }
+
+    @Test
+    @DisplayName("Un identificador de modelo con forma inválida no llega al proveedor")
+    void modeloConFormaInvalida() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"textoPliego": "%s", "modelo": "../../etc/passwd"}
+                        """.formatted("x".repeat(50)))
+                .when().post("/api/analisis/requisitos")
+                .then().statusCode(422)
+                .body("detail", containsString("modelo"));
 
         Mockito.verifyNoInteractions(agente);
     }

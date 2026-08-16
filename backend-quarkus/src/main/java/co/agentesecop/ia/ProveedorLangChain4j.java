@@ -17,10 +17,12 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.service.output.JsonSchemas;
 import io.smallrye.mutiny.Multi;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 
 /**
@@ -41,12 +43,54 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
     private final ObjectMapper jackson;
 
     /**
+     * Tope de modelos vivos por proveedor.
+     *
+     * <p>Dieciséis es holgado para el uso real —un operador alterna entre dos o tres
+     * modelos— y acotado frente al abuso. La caché se indexa por un nombre que viene de
+     * la petición: sin tope, pedir mil modelos distintos deja mil clientes HTTP abiertos
+     * en memoria hasta que la JVM se queda sin ella.
+     */
+    private static final int MAXIMO_MODELOS_CACHEADOS = 16;
+
+    /** Forma admitida de un identificador de modelo. Ver {@link #resolverModelo}. */
+    private static final Pattern FORMA_DE_MODELO =
+            Pattern.compile("[a-zA-Z0-9._:\\-]{1,80}");
+
+    /**
      * Construir un modelo abre un cliente HTTP; se cachean por nombre de modelo para no
      * repetirlo en cada petición.
+     *
+     * <p>Con expulsión del menos usado recientemente, y cierre del cliente al expulsarlo
+     * cuando el proveedor lo permite.
      */
-    private final Map<String, ChatModel> modelosCacheados = new ConcurrentHashMap<>();
-    private final Map<String, StreamingChatModel> modelosFlujoCacheados =
-            new ConcurrentHashMap<>();
+    private final Map<String, ChatModel> modelosCacheados = cacheAcotada();
+    private final Map<String, StreamingChatModel> modelosFlujoCacheados = cacheAcotada();
+
+    private static <V> Map<String, V> cacheAcotada() {
+        // `accessOrder = true` convierte el LinkedHashMap en LRU: la entrada más antigua
+        // pasa a ser la menos usada recientemente, no la insertada antes.
+        return Collections.synchronizedMap(new LinkedHashMap<String, V>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, V> masAntigua) {
+                if (size() <= MAXIMO_MODELOS_CACHEADOS) {
+                    return false;
+                }
+                cerrarSiProcede(masAntigua.getValue());
+                return true;
+            }
+        });
+    }
+
+    /** Algunos clientes mantienen un pool de conexiones; expulsarlos sin cerrar lo filtra. */
+    private static void cerrarSiProcede(Object modelo) {
+        if (modelo instanceof AutoCloseable cerrable) {
+            try {
+                cerrable.close();
+            } catch (Exception e) {
+                LOG.debug("No se pudo cerrar el modelo expulsado de la caché.", e);
+            }
+        }
+    }
 
     protected ProveedorLangChain4j(ConfiguracionIA config, ObjectMapper jackson) {
         this.config = config;
@@ -64,8 +108,25 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
         return configurado() ? null : "Falta configurar la clave de " + etiqueta() + ".";
     }
 
+    /**
+     * Resuelve el modelo a usar y comprueba su forma.
+     *
+     * <p>La validación se repite aquí aunque el contrato HTTP ya la haga: este nombre
+     * termina siendo la clave de una caché en memoria y parte de una petición saliente, y
+     * no todos los caminos hasta aquí pasan por Bean Validation —las pruebas y cualquier
+     * llamada interna futura, por ejemplo—. Es la frontera que de verdad importa.
+     */
     protected String resolverModelo(String solicitado) {
-        return solicitado == null || solicitado.isBlank() ? modeloPorDefecto() : solicitado.trim();
+        if (solicitado == null || solicitado.isBlank()) {
+            return modeloPorDefecto();
+        }
+        String limpio = solicitado.trim();
+        if (!FORMA_DE_MODELO.matcher(limpio).matches()) {
+            throw new ErroresIA.PeticionInvalida(
+                    "El identificador de modelo no tiene una forma válida. Consulta "
+                            + "GET /api/proveedores para ver los disponibles.");
+        }
+        return limpio;
     }
 
     private void exigirConfigurado() {
