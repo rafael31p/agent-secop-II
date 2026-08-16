@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import co.agentesecop.domain.model.tender.AnalisisDePliego;
 import co.agentesecop.domain.model.proposal.InformeDeCumplimiento;
-import co.agentesecop.servicio.Prompts;
+import co.agentesecop.adapter.out.llm.Prompts;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonEnumSchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;

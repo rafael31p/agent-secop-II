@@ -1,4 +1,4 @@
-package co.agentesecop.servicio;
+package co.agentesecop.adapter.out.llm;
 
 /**
  * Prompts de dominio: contratación pública colombiana y requisitos de tecnología.

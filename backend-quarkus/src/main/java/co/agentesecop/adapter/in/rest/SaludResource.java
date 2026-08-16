@@ -1,4 +1,4 @@
-package co.agentesecop.api;
+package co.agentesecop.adapter.in.rest;
 
 import co.agentesecop.adapter.in.rest.dto.EstadoSalud;
 import co.agentesecop.adapter.in.rest.dto.ProveedorDisponible;

@@ -1,4 +1,0 @@
-#
-#Sun Aug 16 09:59:31 GMT-05:00 2026
-no\ classes\ that\ reside\ in\ a\ package\ '..servicio..'\ should\ depend\ on\ classes\ that\ reside\ in\ any\ package\ ['..adapter..',\ '..api..',\ '..ia..',\ '..secop..',\ '..config..'],\ because\ un\ caso\ de\ uso\ depende\ de\ puertos,\ no\ de\ implementaciones\ (SPEC-BE-01\ \u00A73.7)=f7e9804d-1813-4f1f-aa6f-6a3c2c0faa7f
-no\ classes\ that\ reside\ outside\ of\ package\ '..api..'\ should\ depend\ on\ classes\ that\ reside\ in\ a\ package\ '..api..',\ because\ la\ capa\ de\ entrada\ es\ un\ detalle\:\ nada\ de\ dentro\ la\ conoce=41ffa969-ad6d-4ead-a23c-c6a5408aaebc

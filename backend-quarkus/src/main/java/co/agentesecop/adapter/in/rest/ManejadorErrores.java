@@ -1,7 +1,7 @@
-package co.agentesecop.api;
+package co.agentesecop.adapter.in.rest;
 
 import co.agentesecop.ia.ErroresIA;
-import co.agentesecop.servicio.ExtractorDocumentos.DocumentoNoSoportado;
+import co.agentesecop.adapter.out.document.ExtractorDocumentos.DocumentoNoSoportado;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;

@@ -1,53 +1,46 @@
 package co.agentesecop.arquitectura;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import com.tngtech.archunit.library.freeze.FreezingArchRule;
 
 /**
  * La regla de dependencias de SPEC-BE-01, verificada en cada compilación.
  *
- * <h2>Por qué está en verde si el código la incumple</h2>
+ * <h2>Ya no hay nada congelado</h2>
  *
- * <p>Cada regla se envuelve en {@link FreezingArchRule}. La primera ejecución guarda las
- * infracciones existentes en {@code src/test/resources/archunit_store} y pasa; a partir de
- * ahí, una infracción <em>nueva</em> falla y una infracción <em>resuelta</em> desaparece
- * del almacén. La deuda queda registrada, contada y sin poder crecer.
+ * <p>Estas reglas nacieron envueltas en {@code FreezingArchRule} con 482 infracciones
+ * registradas: la deuda quedaba anotada y sin poder crecer mientras se pagaba. La fase 2
+ * la pagó entera, así que el almacén desapareció y las reglas exigen cumplimiento pleno.
+ * A partir de aquí, una violación nueva rompe la compilación en el acto.
  *
- * <p>Introducir la regla en rojo tendría el efecto contrario al buscado: la compilación
- * quedaría rota durante las 8–12 jornadas de la fase 2, y una compilación rota de forma
- * permanente es una que se ignora.
+ * <p>Las tres capas y la única dirección permitida:
  *
- * <h2>Qué queda congelado</h2>
+ * <pre>
+ *   adapter  ──▶  application  ──▶  domain
+ * </pre>
  *
- * <p>Ya solo una regla: {@code servicio → adaptadores}, con 78 entradas.
- * {@code AgenteSecop} recibe los DTO de solicitud HTTP como parámetros e inyecta clases
- * concretas del adaptador de salida. Lo paga el punto 2.6 del plan, cuando los casos de
- * uso reciban comandos y dependan de puertos.
+ * <p>{@code domain} no conoce a nadie —ni siquiera a Jackson—; {@code application} conoce
+ * el dominio y sus propios puertos; {@code adapter} conoce a los dos. Nada conoce a
+ * {@code adapter}.
  *
- * <p>Las reglas del dominio ya <strong>no</strong> están congeladas: no admiten ni una
- * infracción. Es lo que hace que el trabajo hecho no se pueda deshacer por descuido.
+ * <p>Quedan fuera del árbol {@code adapter}, por ahora, los paquetes {@code ia},
+ * {@code secop} y {@code config}: son adaptadores de hecho —hablan con sistemas externos
+ * o con la configuración— pero todavía no se han recolocado. Las reglas los tratan como
+ * tales, que es lo que importa para la dirección de las dependencias.
  */
 @AnalyzeClasses(
         packages = "co.agentesecop",
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})
 class ReglaDeDependenciasTest {
 
-    /**
-     * Paquetes que hacen de adaptador: entrada HTTP, salida y configuración.
-     *
-     * <p>Incluye {@code ..adapter..}, la estructura nueva, además de los paquetes viejos.
-     * Añadirlo destapó una dependencia que ya existía y no se veía: {@code AgenteSecop}
-     * recibe los records de solicitud HTTP como parámetros, y mientras esos records
-     * vivieron en el paquete {@code dominio} la regla no tenía nada que señalar. Moverlos
-     * a su sitio no creó la infracción; la hizo visible.
-     */
+    /** Paquetes que hacen de adaptador, estén o no ya bajo {@code adapter}. */
     private static final String[] ADAPTADORES = {
-        "..adapter..", "..api..", "..ia..", "..secop..", "..config.."
+        "..adapter..", "..ia..", "..secop..", "..config.."
     };
 
     /** Bibliotecas que el núcleo no debe conocer. */
@@ -61,55 +54,60 @@ class ReglaDeDependenciasTest {
     };
 
     /**
-     * El dominio es puro, y esta regla <strong>no está congelada</strong>: no admite ni
-     * una infracción.
+     * El dominio compila sin bibliotecas de serialización ni de HTTP.
      *
-     * <p>Estuvo congelada mientras existió el paquete {@code dominio}, con 459 entradas.
-     * Se pagó entera al trasladar los tipos a {@code domain} sin anotaciones de framework
-     * y separar el contrato HTTP en {@code adapter.in.rest.dto}.
+     * <p>Es la regla que costó más pagar: 459 infracciones, porque los mismos records
+     * servían de contrato HTTP, de modelo y de esquema para el modelo de lenguaje. Se
+     * saldó separando el contrato en {@code adapter.in.rest.dto} y dejando el núcleo
+     * desnudo.
      */
     @ArchTest
-    static final ArchRule elDominioNuevoEsPuro = noClasses()
+    static final ArchRule elDominioNoConoceFrameworks = noClasses()
             .that().resideInAPackage("..domain..")
             .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORKS)
-            .because("lo que se mueve a domain/ ya no puede arrastrar frameworks "
-                    + "(SPEC-BE-01 §3.3)");
+            .because("el núcleo de contratación pública no depende de cómo se serializa "
+                    + "ni de cómo se transporta (SPEC-BE-01 §3.3)");
 
-    /** Y tampoco conoce lo que lo rodea, en ninguna de sus formas. */
+    /** El dominio tampoco conoce lo que lo rodea. */
     @ArchTest
-    static final ArchRule elDominioNuevoNoConoceElResto = noClasses()
+    static final ArchRule elDominioNoConoceANadie = noClasses()
             .that().resideInAPackage("..domain..")
             .should().dependOnClassesThat().resideInAnyPackage(
-                    "..adapter..", "..application..", "..dominio..",
-                    "..api..", "..ia..", "..secop..", "..servicio..", "..config..")
+                    "..adapter..", "..application..", "..ia..", "..secop..", "..config..")
             .because("las dependencias apuntan hacia adentro (SPEC-BE-01 §2)");
 
     /**
-     * Los casos de uso no dependen de adaptadores concretos.
+     * Los casos de uso dependen de puertos, no de implementaciones.
      *
-     * <p>Hoy se incumple en {@code servicio.AgenteSecop}, que inyecta
-     * {@code ia.RegistroProveedores} —una clase concreta del adaptador de salida— en lugar
-     * de un puerto, y en {@code servicio.ExtractorDocumentos}, que usa PDFBox y POI
-     * directamente. El punto 2.3 del plan declara esos puertos.
+     * <p>La pagó el punto 2.6: mientras {@code AgenteSecop} recibía los DTO de solicitud
+     * HTTP e inyectaba el registro de proveedores, esta regla acumulaba 78 entradas.
      */
     @ArchTest
-    static final ArchRule losCasosDeUsoNoDependenDeAdaptadores = FreezingArchRule.freeze(
-            noClasses()
-                    .that().resideInAPackage("..servicio..")
-                    .should().dependOnClassesThat().resideInAnyPackage(ADAPTADORES)
-                    .because("un caso de uso depende de puertos, no de implementaciones "
-                            + "(SPEC-BE-01 §3.7)"));
+    static final ArchRule laAplicacionNoConoceAdaptadores = noClasses()
+            .that().resideInAPackage("..application..")
+            .should().dependOnClassesThat().resideInAnyPackage(ADAPTADORES)
+            .because("un caso de uso depende de puertos, no de quién los implementa "
+                    + "(SPEC-BE-01 §3.7)");
 
     /**
-     * Nadie depende de la capa de entrada HTTP.
+     * La capa REST usa los puertos de entrada, nunca las implementaciones.
      *
-     * <p>Esta sí está en verde hoy y conviene que siga así: es la que impide que un
-     * servicio empiece a devolver tipos de JAX-RS.
+     * <p>Es la que más se olvida y la que más valor tiene: sin ella, un recurso vuelve a
+     * inyectar la clase concreta y la interfaz queda de adorno.
      */
     @ArchTest
-    static final ArchRule nadieDependeDeLaCapaHttp = FreezingArchRule.freeze(
-            noClasses()
-                    .that().resideOutsideOfPackage("..api..")
-                    .should().dependOnClassesThat().resideInAPackage("..api..")
-                    .because("la capa de entrada es un detalle: nada de dentro la conoce"));
+    static final ArchRule laCapaRestUsaPuertos = noClasses()
+            .that().resideInAPackage("..adapter.in.rest..")
+            .should().dependOnClassesThat().resideInAPackage("..application.service..")
+            .because("los recursos hablan con port/in, no con quien lo implementa");
+
+    /** Y la misma dirección, expresada como capas, por si alguna se escapa. */
+    @ArchTest
+    static final ArchRule lasCapasDelHexagono = layeredArchitecture()
+            .consideringOnlyDependenciesInLayers()
+            .layer("Dominio").definedBy("..domain..")
+            .layer("Aplicacion").definedBy("..application..")
+            .layer("Adaptadores").definedBy("..adapter..")
+            .whereLayer("Adaptadores").mayNotBeAccessedByAnyLayer()
+            .whereLayer("Aplicacion").mayOnlyBeAccessedByLayers("Adaptadores");
 }

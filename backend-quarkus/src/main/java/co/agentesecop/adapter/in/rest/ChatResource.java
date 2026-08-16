@@ -1,4 +1,4 @@
-package co.agentesecop.api;
+package co.agentesecop.adapter.in.rest;
 
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudChat;
 import co.agentesecop.ia.ErroresIA;

@@ -1,4 +1,4 @@
-package co.agentesecop.servicio;
+package co.agentesecop.adapter.out.document;
 
 import co.agentesecop.domain.model.procurement.TextoDeDocumento;
 import jakarta.enterprise.context.ApplicationScoped;

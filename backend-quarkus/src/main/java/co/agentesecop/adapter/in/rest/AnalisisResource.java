@@ -1,4 +1,4 @@
-package co.agentesecop.api;
+package co.agentesecop.adapter.in.rest;
 
 import co.agentesecop.adapter.in.rest.dto.AnalisisDto.RespuestaAnalisis;
 import co.agentesecop.adapter.in.rest.mapper.AnalisisMapper;
@@ -7,7 +7,7 @@ import co.agentesecop.adapter.in.rest.mapper.ProcesosMapper;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudAnalisis;
 import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
 import co.agentesecop.application.port.in.AnalizarPliego;
-import co.agentesecop.servicio.ExtractorDocumentos;
+import co.agentesecop.adapter.out.document.ExtractorDocumentos;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
