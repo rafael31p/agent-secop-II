@@ -1,0 +1,22 @@
+# Normaliza los finales de línea: LF en el repositorio, nativos en el disco.
+# Sin esto, un repositorio compartido entre Windows y Linux acumula diffs de
+# líneas completas que no cambian nada.
+* text=auto eol=lf
+
+# Los envoltorios de Maven son ejecutables: mvnw es un script de shell y
+# mvnw.cmd un batch de Windows. Convertir el primero a CRLF lo rompe.
+mvnw text eol=lf
+*.sh text eol=lf
+mvnw.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binarios: nunca tocar.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary
+*.jar binary
+
+# Los archivos generados no cuentan para las estadísticas de lenguaje ni
+# ensucian las revisiones.
+package-lock.json linguist-generated=true -diff

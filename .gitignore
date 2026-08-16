@@ -1,0 +1,46 @@
+# --- Secretos ---
+.env
+.env.local
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# --- Next.js ---
+.next/
+out/
+next-env.d.ts
+coverage/
+*.tsbuildinfo
+
+# --- Java / Maven ---
+target/
+
+# --- Editores / SO ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Herramientas de asistencia ---
+# Los ajustes locales llevan rutas absolutas de la máquina de cada quien.
+.claude/settings.local.json
+
+# --- Salidas de trabajo ---
+*.log
+/salidas/

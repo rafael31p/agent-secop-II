@@ -1,0 +1,242 @@
+# Agente SECOP II — Análisis de Contratación Pública TI
+
+[![Licencia: GPL v3](https://img.shields.io/badge/licencia-GPLv3-blue.svg)](LICENSE)
+
+Aplicación full-stack con un agente de IA experto en **contratación pública colombiana**,
+especializado en:
+
+1. **Explorar oportunidades** en SECOP II (API abierta de datos.gov.co / Socrata).
+2. **Analizar pliegos y requisitos técnicos** de tecnología (TI).
+3. **Generar propuestas técnicas** alineadas al pliego y a la normativa colombiana.
+4. **Validar propuestas** contra los requisitos, detectando brechas y riesgos de rechazo.
+
+El proveedor de IA y el modelo **se eligen en tiempo de ejecución**, por petición: Gemini,
+OpenAI, Anthropic, DeepSeek u Ollama local.
+
+> ⚠️ Esta herramienta es de **apoyo analítico**. No sustituye asesoría jurídica ni las
+> decisiones de la entidad contratante. Toda conclusión debe verificarse contra los
+> documentos oficiales publicados en SECOP II.
+
+---
+
+## Arquitectura
+
+```
+agent-secop-II/
+├── backend-quarkus/    Java 25 + Quarkus + LangChain4j          ← backend actual
+│   └── src/main/java/co/agentesecop/
+│       ├── api/            Recursos REST y traducción de errores
+│       ├── dominio/        Records: contrato HTTP y esquema para el modelo
+│       ├── ia/             ProveedorIA + las cinco implementaciones
+│       ├── secop/          Cliente Socrata y heurística TI
+│       └── servicio/       Agente y extracción de documentos
+├── frontend-next/      Next.js 16 + React 19 + TypeScript       ← frontend actual
+│   ├── app/                Rutas (App Router) y layout
+│   ├── componentes/        Vistas y presentación
+│   ├── lib/                Cliente HTTP, tipos y contextos
+│   └── pruebas/            Vitest + Testing Library
+├── backend/            FastAPI + Python  (versión anterior, se conserva de referencia)
+└── frontend/           React + Vite      (versión anterior, se conserva de referencia)
+```
+
+Las dos versiones anteriores siguen funcionando pero **ya no reciben cambios**. Ojo si
+comparas código: el backend Python serializa en `snake_case` y el de Quarkus en
+`camelCase`, así que el frontend viejo no sirve contra el backend nuevo.
+
+### Flujo funcional
+
+```
+SECOP II (Socrata)  ──▶  /api/procesos/buscar        ──▶  Listado de oportunidades
+        │
+        ▼
+Pliego / requisitos  ──▶  /api/analisis/requisitos    ──▶  Requisitos TI estructurados
+                                                            (obligatorios, ponderables,
+                                                             riesgos, preguntas al ente)
+        │
+        ▼
+                     ──▶  /api/propuestas/generar     ──▶  Propuesta técnica (borrador)
+        │
+        ▼
+                     ──▶  /api/propuestas/validar     ──▶  Matriz de cumplimiento + score
+```
+
+---
+
+## Requisitos
+
+- JDK 21+ (probado en GraalVM JDK 25)
+- Node.js 20+ (probado en 24)
+- Al menos una clave de proveedor de IA. La de
+  [Google AI Studio](https://aistudio.google.com/apikey) es gratuita.
+
+## Puesta en marcha
+
+### Backend
+
+```bash
+cd backend-quarkus
+cp .env.example .env      # y edita AGENTE_IA_GEMINI_API_KEY
+./mvnw quarkus:dev        # puerto 8000
+```
+
+Docs interactivas: http://localhost:8000/docs
+
+### Frontend
+
+```bash
+cd frontend-next
+npm install
+cp .env.local.example .env.local    # solo si el backend no está en localhost:8000
+npm run dev
+```
+
+App: http://localhost:3000
+
+El frontend llama al backend **directamente**, no por un proxy: un intermediario puede
+almacenar en búfer la respuesta del chat y romper el streaming. El CORS del backend ya
+autoriza los puertos 3000 y 5173.
+
+---
+
+## Elección de proveedor y modelo
+
+`GET /api/proveedores` devuelve el catálogo con el estado de cada uno, y la cabecera de la
+aplicación lo usa para armar el selector. Cualquier petición que invoque al modelo acepta
+`proveedor` y `modelo` opcionales; si van nulos manda la configuración del servidor.
+
+| Proveedor | Variable de entorno | Modelo por defecto |
+|---|---|---|
+| Google Gemini | `AGENTE_IA_GEMINI_API_KEY` | `gemini-3.6-flash` |
+| OpenAI | `AGENTE_IA_OPENAI_API_KEY` | `gpt-4.1-mini` |
+| Anthropic | `AGENTE_IA_ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
+| DeepSeek | `AGENTE_IA_DEEPSEEK_API_KEY` | `deepseek-chat` |
+| Ollama (local) | `AGENTE_IA_OLLAMA_HABILITADO=true` | `llama3.1` |
+
+DeepSeek hereda de la implementación de OpenAI: su API es compatible y solo cambia la URL
+base. La lista de modelos del selector es de **sugerencias**, no cerrada; se puede escribir
+cualquier identificador válido del proveedor.
+
+**Aparecer en el catálogo no significa poder usarlo.** Dos trampas verificadas contra la
+API real de Gemini:
+
+- Los modelos retirados **siguen apareciendo** en el listado pero devuelven `404`
+  («no longer available to new users»).
+- Los modelos `pro` devuelven `429` en el plan gratuito. Solo los `flash` están
+  disponibles sin plan de pago.
+
+Los filtros de seguridad se fijan en `BLOCK_ONLY_HIGH` porque los pliegos de
+ciberseguridad, control de acceso o infraestructura penitenciaria disparan falsos
+positivos con el umbral por defecto.
+
+---
+
+## Endpoints
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET`  | `/api/salud` | Estado del servicio y de la configuración |
+| `GET`  | `/api/proveedores` | Catálogo de proveedores de IA y su disponibilidad |
+| `POST` | `/api/procesos/buscar` | Busca procesos en SECOP II con filtros |
+| `GET`  | `/api/procesos/{id}` | Detalle de un proceso |
+| `POST` | `/api/procesos/relevancia-ti` | Clasifica y prioriza procesos por relevancia TI |
+| `POST` | `/api/analisis/requisitos` | Extrae y estructura requisitos técnicos del pliego |
+| `POST` | `/api/analisis/documento` | Sube PDF/DOCX/TXT y extrae su texto |
+| `POST` | `/api/propuestas/generar` | Genera propuesta técnica |
+| `POST` | `/api/propuestas/validar` | Valida propuesta vs. requisitos |
+| `POST` | `/api/chat` | Chat con el agente experto (streaming SSE) |
+
+### Manejo de errores del proveedor
+
+Los planes gratuitos devuelven `503` y `429` con frecuencia. El agente reintenta con
+retroceso exponencial y jitter antes de rendirse. Cuando el fallo persiste, el error llega
+al cliente **con su explicación**, no como un `500` genérico
+(`co.agentesecop.api.ManejadorErrores`):
+
+| Situación | HTTP | Qué ve el usuario |
+|---|---|---|
+| Falta la clave del proveedor | `503` | Cuál falta y dónde obtenerla |
+| Proveedor desconocido | `400` | Los proveedores disponibles |
+| Cuota agotada | `429` | Que espere o revise su plan |
+| Servicio caído / modelo inexistente | `404`/`502` | Qué modelo falló y cómo listarlos |
+| Filtro de contenido o respuesta truncada | `422` | Por qué se detuvo la generación |
+| Pliego demasiado grande | `413` | El tamaño y el límite |
+
+---
+
+## Verificación
+
+```bash
+cd backend-quarkus
+./mvnw test                    # 88 pruebas, sin red ni credenciales
+python verificar_en_vivo.py    # extremo a extremo contra el servidor levantado
+```
+
+```bash
+cd frontend-next
+npm test                       # 64 pruebas (Vitest + Testing Library)
+npm run typecheck
+npm run build
+```
+
+Las pruebas del backend usan **WireMock como librería en la misma JVM** en lugar de
+Testcontainers, porque el entorno de desarrollo no tiene Docker.
+
+`PerfilSinCredenciales` fuerza a que corran sin claves: sin él, el `.env` del
+desarrollador se filtra al perfil de pruebas y estas se comportan distinto en cada
+máquina.
+
+---
+
+## Notas sobre los datos de SECOP II
+
+Los datos provienen de la API abierta de **datos.gov.co** (Socrata / SoQL). Cosas que
+conviene saber antes de confiar en un resultado:
+
+- **El conjunto de datos no incluye los documentos del proceso.** Trae el objeto
+  contractual, la entidad, el valor y el enlace, pero no el pliego ni los anexos.
+  Para analizar requisitos hay que descargar el PDF desde el enlace de SECOP y subirlo
+  en la vista «Analizar».
+- **No hay fecha de cierre de recepción de ofertas** en el dataset. Se expone
+  `fechaUltimaPublicacion`, que es otra cosa; la fecha de cierre debe consultarse en
+  el proceso publicado.
+- **Los nulos ordenan primero en `DESC`.** Por eso el cliente añade siempre
+  `fecha_de_publicacion_del IS NOT NULL`; sin esa cláusula el listado se llena de
+  procesos antiguos sin fecha en vez de los recientes.
+- **El puntaje `TI` de cada resultado es una heurística local por palabras clave**, no
+  una clasificación del modelo. Sirve para ordenar y descartar ruido sin gastar tokens.
+  La clasificación fina la hace el botón «Priorizar con IA».
+- **El esquema del dataset ha cambiado entre versiones.** El cliente prueba varios
+  alias por campo. Si la API responde `no-such-column`, revisa el mapa `ALIAS` en
+  `SecopCliente`. Si un dataset responde 404, consulta el catálogo en
+  https://www.datos.gov.co y actualiza `agente.secop.dataset-procesos`.
+
+## Limitaciones conocidas
+
+- Los PDF escaneados sin capa de texto no se pueden leer (no hay OCR).
+- El análisis se hace en una sola llamada: pliegos de más de ~400 000 caracteres deben
+  dividirse por capítulos.
+- Los archivos `.doc` antiguos deben convertirse a `.docx` o PDF.
+- El espacio de trabajo del frontend vive en el navegador (`sessionStorage`): sobrevive a
+  recargar la página, no a cerrar la pestaña. No hay persistencia en servidor ni cuentas.
+- Las salidas del agente son insumo de análisis y deben contrastarse con los documentos
+  oficiales del proceso.
+
+---
+
+## Licencia
+
+Copyright © 2026 rafael31p
+
+Este programa es software libre: puedes redistribuirlo y/o modificarlo bajo los términos
+de la **Licencia Pública General de GNU, versión 3**, publicada por la Free Software
+Foundation. El texto completo está en [`LICENSE`](LICENSE).
+
+Se distribuye con la esperanza de que sea útil, pero **SIN NINGUNA GARANTÍA**, ni siquiera
+la garantía implícita de comerciabilidad o idoneidad para un propósito particular.
+
+En términos prácticos: puedes usarlo, estudiarlo, modificarlo y redistribuirlo. Si
+distribuyes una versión modificada, o un servicio construido sobre este código que
+entregues a terceros, debes publicar tu código también bajo GPL-3.0.
+
+Los datos de SECOP II consultados por esta herramienta son información pública del Estado
+colombiano (Ley 1712 de 2014) y no están cubiertos por esta licencia.
