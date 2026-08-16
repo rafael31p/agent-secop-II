@@ -57,29 +57,6 @@ public final class Secop {
         }
     }
 
-    public record EstadoSalud(
-            String estado,
-            String version,
-            String proveedorIaPorDefecto,
-            String modeloPorDefecto,
-            @Schema(description = "Proveedores con credenciales configuradas.")
-            List<String> proveedoresConfigurados,
-            boolean iaConfigurada,
-            String secopDatasetProcesos,
-            boolean secopTokenConfigurado) {}
-
-    /** Descripción de un proveedor de IA para que el frontend arme el selector. */
-    public record ProveedorDisponible(
-            String nombre,
-            String etiqueta,
-            boolean configurado,
-            @Schema(description = "Modelos sugeridos. No es exhaustivo: cualquier "
-                    + "identificador válido del proveedor se acepta.")
-            List<String> modelos,
-            String modeloPorDefecto,
-            @Schema(description = "Por qué no está disponible, si no lo está.")
-            String motivo) {}
-
     public record RespuestaDocumento(
             String nombreArchivo,
             String tipo,

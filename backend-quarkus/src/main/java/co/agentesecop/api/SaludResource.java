@@ -1,7 +1,7 @@
 package co.agentesecop.api;
 
-import co.agentesecop.dominio.Secop.EstadoSalud;
-import co.agentesecop.dominio.Secop.ProveedorDisponible;
+import co.agentesecop.adapter.in.rest.dto.EstadoSalud;
+import co.agentesecop.adapter.in.rest.dto.ProveedorDisponible;
 import co.agentesecop.ia.RegistroProveedores;
 import co.agentesecop.secop.SecopCliente;
 import jakarta.inject.Inject;
@@ -10,6 +10,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.util.List;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -19,15 +20,27 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Tag(name = "salud", description = "Estado y capacidades del servicio")
 public class SaludResource {
 
-    public static final String VERSION = "0.2.0";
+    /**
+     * Sale del {@code pom.xml}, no de una constante.
+     *
+     * <p>Había tres números de versión distintos —el del {@code pom}, el de la
+     * documentación OpenAPI y esta constante— y ya divergían: el {@code pom} decía
+     * 0.1.0 mientras la API anunciaba 0.2.0. Con tres fuentes, la que se actualiza es
+     * la que alguien recuerda.
+     */
+    private final String version;
 
     private final RegistroProveedores registro;
     private final SecopCliente secop;
 
     @Inject
-    public SaludResource(RegistroProveedores registro, SecopCliente secop) {
+    public SaludResource(
+            RegistroProveedores registro,
+            SecopCliente secop,
+            @ConfigProperty(name = "quarkus.application.version") String version) {
         this.registro = registro;
         this.secop = secop;
+        this.version = version;
     }
 
     @GET
@@ -37,7 +50,7 @@ public class SaludResource {
         boolean hayIa = registro.hayAlgunoConfigurado();
         return new EstadoSalud(
                 hayIa ? "ok" : "degradado",
-                VERSION,
+                version,
                 registro.nombrePorDefecto(),
                 registro.modeloPorDefecto(),
                 registro.nombresConfigurados(),

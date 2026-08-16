@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import co.agentesecop.PerfilSinCredenciales;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -72,5 +73,23 @@ class SaludResourceTest {
         given()
                 .when().get("/q/openapi")
                 .then().statusCode(200);
+    }
+
+    /**
+     * La versión que anuncia la API es la del {@code pom.xml}.
+     *
+     * <p>Se compara contra la propiedad de configuración y no contra un literal: escribir
+     * «0.2.0» aquí volvería a crear la segunda fuente de verdad que este cambio elimina, y
+     * la prueba seguiría pasando el día que las dos divergieran.
+     */
+    @Test
+    @DisplayName("La versión viene de la compilación, no de una constante en el código")
+    void versionDeLaCompilacion() {
+        String delPom = ConfigProvider.getConfig()
+                .getValue("quarkus.application.version", String.class);
+
+        given().when().get("/api/salud")
+                .then().statusCode(200)
+                .body("version", is(delPom));
     }
 }

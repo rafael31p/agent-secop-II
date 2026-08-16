@@ -1,7 +1,7 @@
 package co.agentesecop.ia;
 
 import co.agentesecop.config.ConfiguracionIA;
-import co.agentesecop.dominio.Secop.ProveedorDisponible;
+import co.agentesecop.adapter.in.rest.dto.ProveedorDisponible;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;

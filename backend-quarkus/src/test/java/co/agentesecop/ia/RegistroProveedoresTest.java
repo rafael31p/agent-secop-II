@@ -31,7 +31,7 @@ class RegistroProveedoresTest {
     @DisplayName("CDI descubre los cinco proveedores")
     void descubreTodosLosProveedores() {
         List<String> nombres = registro.catalogo().stream()
-                .map(co.agentesecop.dominio.Secop.ProveedorDisponible::nombre)
+                .map(co.agentesecop.adapter.in.rest.dto.ProveedorDisponible::nombre)
                 .toList();
 
         assertTrue(nombres.containsAll(
