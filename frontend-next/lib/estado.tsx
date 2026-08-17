@@ -19,7 +19,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -66,9 +65,24 @@ const Contexto = createContext<Espacio | null>(null);
 export function ProveedorEspacio({ children }: { children: ReactNode }) {
   const [datos, setDatos] = useState<Instantanea>(VACIO);
   const [perfilProveedor, setPerfil] = useState("");
-  // Hasta que no se intenta restaurar, no se guarda: si no, el primer render
-  // (vacío, porque en el servidor no hay almacenamiento) borraría lo guardado.
-  const restaurado = useRef(false);
+
+  /**
+   * Si ya se intentó restaurar. Hasta entonces no se guarda nada.
+   *
+   * <p>Es estado y no una referencia, y la diferencia no es de estilo: era un
+   * `useRef` puesto a `true` dentro del efecto de restauración, y eso **borraba
+   * el espacio de trabajo en cada carga de página**. Los dos efectos corren en
+   * el mismo commit y en orden de declaración: el de restauración leía lo
+   * guardado y programaba el estado, pero el de guardado se ejecutaba a
+   * continuación viendo todavía `datos` vacío —el nuevo valor no llega hasta el
+   * render siguiente— y escribía ese vacío encima. En desarrollo, StrictMode
+   * repite los efectos, así que la segunda restauración ya leía lo que la
+   * primera había machacado y la pérdida quedaba consolidada.
+   *
+   * <p>Con estado, el guardado se salta el primer commit y solo corre cuando el
+   * render ya lleva los datos restaurados.
+   */
+  const [restaurado, setRestaurado] = useState(false);
 
   useEffect(() => {
     setPerfil(leer(localStorage, CLAVE_PERFIL) ?? "");
@@ -80,18 +94,18 @@ export function ProveedorEspacio({ children }: { children: ReactNode }) {
         // Formato viejo o corrupto: se empieza limpio en vez de romper la app.
       }
     }
-    restaurado.current = true;
+    setRestaurado(true);
   }, []);
 
   useEffect(() => {
-    if (!restaurado.current) return;
+    if (!restaurado) return;
     try {
       sessionStorage.setItem(CLAVE_ESPACIO, JSON.stringify(datos));
     } catch {
       // Cuota llena (un pliego largo) o modo privado: el espacio sigue en
       // memoria y solo se pierde la recuperación tras recargar.
     }
-  }, [datos]);
+  }, [datos, restaurado]);
 
   const fijarPerfilProveedor = useCallback((perfil: string) => {
     setPerfil(perfil);
