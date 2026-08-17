@@ -69,7 +69,19 @@ public final class Prompts {
             - Escribe en español de Colombia, con terminología del sector público.
             - No emites conceptos jurídicos vinculantes: tu salida es insumo de análisis y
               debe contrastarse con los documentos oficiales del proceso.
+            """;
 
+    /**
+     * Se añade a las tareas que se vinculan a un record; el chat no lo lleva.
+     *
+     * <p>Antes formaba parte de {@link #SISTEMA_BASE} y el chat lo quitaba con un
+     * {@code replace} del literal. Componer <em>quitando</em> es frágil por construcción:
+     * basta con que el original y la copia dejen de coincidir —un espacio, un salto de
+     * línea, un reformateo— para que el bloque se quede puesto, y el fallo es silencioso:
+     * el chat empieza a responder JSON y nada avisa. Compuesto por adición, ese modo de
+     * fallo no existe.
+     */
+    public static final String FORMATO_JSON = """
             ## Formato de salida
             Responde ÚNICAMENTE con un objeto JSON que cumpla el esquema solicitado. Sin
             texto antes ni después, sin bloques de código Markdown.

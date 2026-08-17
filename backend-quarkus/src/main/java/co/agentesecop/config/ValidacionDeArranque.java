@@ -1,6 +1,5 @@
 package co.agentesecop.config;
 
-import io.quarkus.runtime.LaunchMode;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -24,8 +23,17 @@ import org.jboss.logging.Logger;
  * autorizado —o peor, la ilusión de que está configurado—. De ahí esta comprobación
  * explícita.
  *
- * <p>Se usa {@link LaunchMode#NORMAL} y no el nombre del perfil porque describe justo lo
- * que interesa: la aplicación arrancó como servicio, no en desarrollo ni en pruebas.
+ * <h2>Por qué mira el perfil y no el modo de arranque</h2>
+ *
+ * <p>La primera versión usaba {@code LaunchMode.NORMAL}, que parece más honesto: describe
+ * que la aplicación arrancó como servicio. Pero las excepciones que estas comprobaciones
+ * vigilan están escritas como {@code %dev.} y {@code %test.} en la configuración, y esas
+ * <em>sí</em> miran el perfil. Al ejecutar el jar empaquetado con {@code -Dquarkus.profile=dev}
+ * los dos criterios se contradecían: la configuración desactivaba la autenticación y el
+ * guardián se negaba a arrancar acusando a producción de algo que nadie había pedido.
+ *
+ * <p>Ahora las dos cosas miran lo mismo. Si un día se despliega con el perfil {@code dev},
+ * lo que hay que arreglar es el despliegue.
  */
 @ApplicationScoped
 public class ValidacionDeArranque {
@@ -35,6 +43,10 @@ public class ValidacionDeArranque {
     @ConfigProperty(name = "quarkus.http.cors.origins")
     Optional<List<String>> origenesCors;
 
+    /** Perfil activo. Quarkus lo publica bajo este nombre. */
+    @ConfigProperty(name = "quarkus.profile", defaultValue = "prod")
+    String perfil;
+
     private final ConfiguracionSeguridad seguridad;
 
     ValidacionDeArranque(ConfiguracionSeguridad seguridad) {
@@ -42,7 +54,7 @@ public class ValidacionDeArranque {
     }
 
     void alArrancar(@Observes StartupEvent evento) {
-        if (LaunchMode.current() != LaunchMode.NORMAL) {
+        if ("dev".equals(perfil) || "test".equals(perfil)) {
             return;
         }
         exigirOrigenesCors();
@@ -52,7 +64,8 @@ public class ValidacionDeArranque {
     private void exigirClavesDeApi() {
         if (!seguridad.autenticacionRequerida()) {
             throw new IllegalStateException(
-                    "La autenticación está desactivada en producción. Eso deja los "
+                    "La autenticación está desactivada con el perfil '" + perfil
+                            + "'. Eso deja los "
                             + "endpoints que llaman al modelo abiertos a cualquiera con "
                             + "ruta de red, gastando el presupuesto de tokens del "
                             + "operador. Quita agente.seguridad.autenticacion-requerida "
