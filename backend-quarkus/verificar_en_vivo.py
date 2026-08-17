@@ -49,6 +49,48 @@ def main() -> int:
                   salud["modeloPorDefecto"] == "gemini-3.6-flash",
                   salud["modeloPorDefecto"])
 
+        # 1b. Sondas, métricas y correlación (fase 3)
+        #
+        # `/api/salud` informa de qué hay CONFIGURADO; estas informan de si FUNCIONA.
+        # La diferencia importa: el primero devolvía «ok» con la clave revocada.
+        print("\n--- 1b. Sondas de operación, métricas y correlación ---")
+        r = cliente.get("/q/health/live")
+        verificar("GET /q/health/live -> UP", r.json().get("status") == "UP", r.text[:200])
+
+        r = cliente.get("/q/health/ready")
+        sondas = {c["name"]: c for c in r.json().get("checks", [])}
+        verificar("la disponibilidad reporta los modelos",
+                  "modelos-de-lenguaje" in sondas,
+                  f"sondas: {sorted(sondas)}")
+        if "modelos-de-lenguaje" in sondas:
+            datos = sondas["modelos-de-lenguaje"].get("data", {})
+            print(f"        modelos: {sondas['modelos-de-lenguaje']['status']} "
+                  f"(cortacircuitos: {datos.get('cortacircuitos')})")
+        verificar("la fuente de SECOP se reporta aparte", "fuente-secop" in sondas,
+                  "Fundirlas borraría que se puede buscar sin poder analizar")
+
+        r = cliente.get("/q/metrics")
+        verificar("GET /q/metrics -> 200", r.status_code == 200)
+
+        mio = "verificacion-en-vivo"
+        r = cliente.get("/api/salud", headers={"X-Correlation-Id": mio})
+        verificar("conserva el identificador de correlación del cliente",
+                  r.headers.get("X-Correlation-Id") == mio,
+                  r.headers.get("X-Correlation-Id"))
+        # El salto de línea, que es el caso feo, no se puede probar desde aquí: httpx se
+        # niega a enviarlo («Illegal header value»). Lo cubre CorrelacionTest, que llega
+        # al filtro sin pasar por un cliente HTTP escrupuloso. Aquí se prueban los dos que
+        # sí viajan por la red: el desmesurado y el de caracteres no admitidos.
+        abusivo = "a" * 10_000
+        r = cliente.get("/api/salud", headers={"X-Correlation-Id": abusivo})
+        devuelto = r.headers.get("X-Correlation-Id") or ""
+        verificar("descarta un identificador desmesurado",
+                  len(devuelto) <= 64, f"{len(devuelto)} caracteres")
+        r = cliente.get("/api/salud", headers={"X-Correlation-Id": "id con espacios y ;"})
+        verificar("descarta un identificador con caracteres no admitidos",
+                  r.headers.get("X-Correlation-Id") != "id con espacios y ;",
+                  r.headers.get("X-Correlation-Id"))
+
         # 2. Catálogo de proveedores (lo nuevo frente a la versión Python)
         print("\n--- 2. Catálogo de proveedores ---")
         r = cliente.get("/api/proveedores")
@@ -152,6 +194,30 @@ def main() -> int:
                   f"eventos: {sorted(set(eventos))}")
         verificar("cierra con evento 'fin'", "fin" in eventos)
         verificar("produce texto", len(texto) > 20, texto[:140])
+
+        # 8. Métricas, ahora que ya hubo tráfico
+        #
+        # Va al final y no junto a las sondas por un motivo que costó una comprobación
+        # fallida: Fault Tolerance y Micrometer registran sus medidores la primera vez que
+        # se invoca el método guardado. Antes del primer análisis no existe ni una sola
+        # métrica que mirar, así que comprobarlas al principio siempre da rojo.
+        print("\n--- 8. Métricas tras el tráfico ---")
+        metricas = cliente.get("/q/metrics").text
+        verificar("mide la latencia por caso de uso",
+                  "llm_peticion_seconds" in metricas and 'caso_de_uso="AnalisisDePliego"' in metricas)
+        verificar("cuenta el consumo estimado", "llm_tokens_total" in metricas,
+                  "Es la métrica que responde cuánto cuesta esto")
+        verificar("publica el estado del cortacircuitos",
+                  "ft_circuitbreaker_calls_total" in metricas)
+        verificar("publica la ocupación del mamparo",
+                  "ft_bulkhead" in metricas,
+                  "Es con lo que se calibra el valor, en vez de adivinarlo")
+        # La cardinalidad: los dos campos vienen de la petición del usuario.
+        verificar("no etiqueta con un proveedor inventado",
+                  'proveedor="inventado"' not in metricas,
+                  "Un bucle pidiendo proveedores al azar llenaría el almacén de métricas")
+        verificar("no etiqueta con un modelo inventado",
+                  'modelo="modelo-que-no-existe"' not in metricas)
 
     print()
     if fallos:

@@ -5,8 +5,8 @@ import co.agentesecop.adapter.out.document.ExtractorDocumentos.DocumentoNoSoport
 import jakarta.validation.ConstraintViolationException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
-import java.util.UUID;
 import java.util.stream.Collectors;
+import org.eclipse.microprofile.faulttolerance.exceptions.FaultToleranceException;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
@@ -37,27 +37,33 @@ public class ManejadorErrores {
 
     private static final Logger LOG = Logger.getLogger(ManejadorErrores.class);
 
+    /** Coincide con el retardo del cortacircuitos: antes de eso no hay nada que ganar. */
+    private static final String SEGUNDOS_PARA_REINTENTAR = "30";
+
     /** Cuerpo de error uniforme. */
     public record Detalle(String detail, String correlationId) {
 
         /**
-         * Construye el cuerpo generando el identificador.
+         * Construye el cuerpo con el identificador de la petición en curso.
          *
          * <p>Existe para que ninguna respuesta de error salga sin él: un recurso que
          * construye su propio 404 no debería tener que acordarse de pedirlo.
          */
         public static Detalle de(String detail) {
-            return new Detalle(detail, nuevoIdentificador());
+            return new Detalle(detail, FiltroCorrelacion.actual());
         }
     }
 
     @ServerExceptionMapper
     public Response errorDelAgente(ErroresIA.ErrorAgente error) {
-        String identificador = nuevoIdentificador();
+        String identificador = FiltroCorrelacion.actual();
         // El mensaje de las excepciones tipadas lo redacta este código y es seguro por
         // construcción; la causa es la que puede traer texto de fuera, y solo se registra.
-        LOG.errorf(error, "[%s] %s (HTTP %d)",
-                identificador, error.getClass().getSimpleName(), error.estadoHttp());
+        // Sin repetir el identificador en el texto: el formato del registro ya lo
+        // inserta desde el contexto (`%X{correlationId}`), y ponerlo también aquí lo
+        // pintaba dos veces en cada línea.
+        LOG.errorf(error, "%s (HTTP %d)",
+                error.getClass().getSimpleName(), error.estadoHttp());
         return Response.status(error.estadoHttp())
                 .entity(new Detalle(error.getMessage(), identificador))
                 .build();
@@ -65,8 +71,8 @@ public class ManejadorErrores {
 
     @ServerExceptionMapper
     public Response documentoNoSoportado(DocumentoNoSoportado error) {
-        String identificador = nuevoIdentificador();
-        LOG.warnf("[%s] Documento no soportado: %s", identificador, error.getMessage());
+        String identificador = FiltroCorrelacion.actual();
+        LOG.warnf("Documento no soportado: %s", error.getMessage());
         return Response.status(415)
                 .entity(new Detalle(error.getMessage(), identificador))
                 .build();
@@ -87,15 +93,30 @@ public class ManejadorErrores {
         // Estos mensajes son los de las anotaciones del contrato: los escribimos nosotros
         // y describen lo que el cliente envió mal. Se devuelven tal cual, a propósito.
         return Response.status(422)
-                .entity(new Detalle(detalle, nuevoIdentificador()))
+                .entity(new Detalle(detalle, FiltroCorrelacion.actual()))
                 .build();
     }
 
     /**
-     * Identificador corto: ocho caracteres bastan para localizarlo en el registro y son
-     * pocos para dictarlos por teléfono o pegarlos en un reporte.
+     * Traduce los fallos de las políticas de resiliencia.
+     *
+     * <p>Sin este mapeo, un mamparo lleno o un cortacircuitos abierto salen como «500
+     * Internal Server Error»: exactamente el defecto que este manejador existe para
+     * evitar, reaparecido por la puerta de atrás al añadir Fault Tolerance. Los tres son
+     * situaciones de saturación temporal, y por eso llevan {@code Retry-After}: le dicen
+     * al cliente que vuelva, no que se rinda.
      */
-    private static String nuevoIdentificador() {
-        return UUID.randomUUID().toString().substring(0, 8);
+    @ServerExceptionMapper
+    public Response saturacion(FaultToleranceException error) {
+        String identificador = FiltroCorrelacion.actual();
+        LOG.warnf(error, "Política de resiliencia activada: %s",
+                error.getClass().getSimpleName());
+        return Response.status(503)
+                .header("Retry-After", SEGUNDOS_PARA_REINTENTAR)
+                .entity(new Detalle(
+                        "El servicio está saturado o el proveedor no responde. Prueba con "
+                                + "otro proveedor desde el selector, o reintenta en un minuto.",
+                        identificador))
+                .build();
     }
 }

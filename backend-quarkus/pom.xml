@@ -62,6 +62,26 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
         </dependency>
+
+        <!-- ===== Resiliencia y observabilidad (SPEC-BE-02, SPEC-BE-05) ===== -->
+        <!-- MicroProfile Fault Tolerance. Sustituye el reintento artesanal: la
+             política se declara y se configura, no se programa. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
+        <!-- Micrometer con registro Prometheus. Además de las métricas propias,
+             publica automáticamente las de Fault Tolerance: reintentos gastados,
+             estado del cortacircuitos y ocupación del mamparo. Sin ellas, los
+             valores de SPEC-BE-02 serían adivinanzas. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
+        </dependency>
         <!-- ===== Proveedores de IA (LangChain4j como librería) ===== -->
         <dependency>
             <groupId>dev.langchain4j</groupId>

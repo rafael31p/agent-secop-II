@@ -162,8 +162,14 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
                 .responseFormat(formatoJson(tipo))
                 .build();
 
-        ChatResponse respuesta = conReintentos(
-                () -> modelo.chat(solicitud), nombreModelo);
+        ChatResponse respuesta;
+        try {
+            respuesta = modelo.chat(solicitud);
+        } catch (RuntimeException e) {
+            // Traducir aquí y no arriba es lo que permite que la política de resiliencia
+            // se declare: quien decora este puerto ve tipos, no cadenas del proveedor.
+            throw traducir(e, nombreModelo);
+        }
 
         String texto = Optional.ofNullable(respuesta.aiMessage())
                 .map(AiMessage::text)
@@ -279,49 +285,19 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
     }
 
     /**
-     * Ejecuta la llamada reintentando los fallos transitorios.
+     * Traduce la excepción del proveedor a algo accionable para el usuario.
      *
-     * <p>Los planes gratuitos devuelven 429 y 503 con frecuencia; sin reintentos, una
-     * petición perfectamente válida falla ante el usuario.
+     * <p>Aquí acabó el reintento artesanal que vivía en esta clase. Eran unas treinta
+     * líneas con {@code Thread.sleep} que retenían un hilo de plataforma hasta quince
+     * minutos en el peor caso, sin cortacircuitos —la petición mil pagaba los mismos tres
+     * intentos que la primera— y sin métricas. Lo sustituye
+     * {@code adapter.out.llm.ModeloDeLenguajeResiliente}, que declara la política con
+     * anotaciones de MicroProfile Fault Tolerance.
+     *
+     * <p>Lo que queda de aquel código es lo único que no era reimplementar el estándar: la
+     * <em>clasificación</em>. El tipo que devuelve este método es lo que decide si se
+     * reintenta, porque {@code @Retry(retryOn = …)} razona sobre clases.
      */
-    private <R> R conReintentos(java.util.function.Supplier<R> operacion, String nombreModelo) {
-        RuntimeException ultimo = null;
-        for (int intento = 1; intento <= config.intentosMaximos(); intento++) {
-            try {
-                return operacion.get();
-            } catch (RuntimeException e) {
-                ErroresIA.ErrorAgente traducido = traducir(e, nombreModelo);
-                boolean reintentable = esReintentable(traducido);
-                if (!reintentable || intento == config.intentosMaximos()) {
-                    throw traducido;
-                }
-                ultimo = traducido;
-                // Retroceso exponencial con jitter, para no sincronizar reintentos.
-                long espera = (long) (config.esperaBaseMillis() * Math.pow(2, intento - 1)
-                        + Math.random() * 1000);
-                LOG.warnf("Fallo transitorio de %s (intento %d/%d); reintento en %d ms: %s",
-                        nombre(), intento, config.intentosMaximos(), espera,
-                        traducido.getMessage());
-                try {
-                    Thread.sleep(espera);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw traducido;
-                }
-            }
-        }
-        throw ultimo != null
-                ? ultimo
-                : new ErroresIA.FalloDelProveedor(
-                        "Fallo desconocido del proveedor " + nombre() + ".", 502, null);
-    }
-
-    private static boolean esReintentable(ErroresIA.ErrorAgente error) {
-        return error instanceof ErroresIA.FalloDelProveedor
-                && (error.estadoHttp() == 429 || error.estadoHttp() == 502);
-    }
-
-    /** Traduce la excepción del proveedor a algo accionable para el usuario. */
     protected ErroresIA.ErrorAgente traducir(Throwable error, String nombreModelo) {
         if (error instanceof ErroresIA.ErrorAgente yaTraducido) {
             return yaTraducido;
@@ -330,23 +306,23 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
         String minusculas = mensaje.toLowerCase();
 
         if (contiene(minusculas, "api key", "api_key", "unauthorized", "401", "invalid key")) {
-            return new ErroresIA.FalloDelProveedor(
+            return new ErroresIA.CredencialInvalida(
                     "La clave de %s es inválida o falta. Revisa la configuración."
                             .formatted(etiqueta()),
-                    401, error);
+                    error);
         }
         if (contiene(minusculas, "quota", "rate limit", "429", "resource_exhausted")) {
-            return new ErroresIA.FalloDelProveedor(
+            return new ErroresIA.FalloTransitorio(
                     "Se agotó la cuota de %s. Espera unos minutos o revisa los límites "
                             .formatted(etiqueta()) + "de tu plan.",
                     429, error);
         }
         if (contiene(minusculas, "not found", "404", "no longer available", "does not exist")) {
-            return new ErroresIA.FalloDelProveedor(
+            return new ErroresIA.ModeloDesconocido(
                     ("El modelo '%s' no existe en %s o tu clave no tiene acceso a él. "
                             + "Consulta GET /api/proveedores para ver los disponibles.")
                             .formatted(nombreModelo, etiqueta()),
-                    404, error);
+                    error);
         }
         if (contiene(minusculas, "safety", "blocked", "content filter", "prohibited")) {
             return new ErroresIA.RespuestaInutilizable(
@@ -356,7 +332,7 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
         }
         if (contiene(minusculas, "503", "unavailable", "overloaded", "high demand",
                 "500", "internal error", "timeout", "timed out")) {
-            return new ErroresIA.FalloDelProveedor(
+            return new ErroresIA.FalloTransitorio(
                     "El servicio de %s falló temporalmente. Reintenta.".formatted(etiqueta()),
                     502, error);
         }
@@ -367,7 +343,10 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
         //
         // El detalle no se pierde: viaja como causa de la excepción y `ManejadorErrores`
         // lo registra junto al identificador que sí ve el usuario.
-        return new ErroresIA.FalloDelProveedor(
+        //
+        // Se clasifica como transitorio, que es lo que ya hacía el reintento artesanal al
+        // devolver 502: ante lo desconocido conviene reintentar una vez antes de rendirse.
+        return new ErroresIA.FalloTransitorio(
                 ("%s devolvió un error que no se pudo clasificar. Reintenta; si persiste, "
                         + "cita el identificador de este error al reportarlo.")
                         .formatted(etiqueta()),

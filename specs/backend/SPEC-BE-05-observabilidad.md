@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Implementada en parte (fase 3) |
 | **Prioridad** | 🟠 Media |
 | **Cierra** | BE-M15, BE-M18 |
 | **Depende de** | SPEC-BE-01 · Habilita el calibrado de SPEC-BE-02 |
@@ -300,3 +300,38 @@ calibrar los valores de `SPEC-BE-02`.
 - Alertas y sus umbrales (`SPEC-NT-03`).
 - Registro de auditoría de quién analizó qué (`SPEC-NT-02` lo requiere y merece su propia
   decisión, porque implica almacenar contenido de pliegos).
+
+---
+
+## 8. Qué se implementó en la fase 3 y qué no
+
+**Hecho:** las tres sondas (`/q/health/live`, `/q/health/ready`), Micrometer con registro
+Prometheus en `/q/metrics`, el decorador de métricas sobre el puerto, el identificador de
+correlación y el blindaje del perfil de pruebas con su guardián.
+
+**Pendiente, con motivo:**
+
+| Punto | Estado |
+|---|---|
+| §3.4 OpenTelemetry como dependencia apagada | No se añade. Sin colector no aporta nada y engorda el arranque; encenderlo el día que haya uno es una dependencia y dos propiedades. |
+| §3.3 registro JSON en `%prod` | No se activa. El identificador ya viaja en cada línea vía MDC, que era lo que faltaba; el formato JSON se decide cuando haya un destino que lo consuma. |
+| §3.1 sonda por proveedor | No es posible sin renunciar a la resiliencia declarativa. Ver `SPEC-BE-02` §8.4. |
+
+### 8.1 Dos correcciones sobre lo que decía esta spec
+
+**El aislamiento del perfil de pruebas no se consigue con `%test.…=`** (§3.5). Quarkus lee
+`.env` con prioridad 295 y `application.properties` del classpath con 250: las líneas
+`%test.agente.ia.*.api-key=` **perdían**. Es decir, el blindaje propuesto no blindaba nada
+en la máquina de quien tiene claves. Lo resuelve `pruebas.AislamientoDePruebas`, una
+`ConfigSource` de prioridad 300 que solo existe en el classpath de pruebas.
+
+**Las métricas de Fault Tolerance no aparecen hasta que hay tráfico.** Micrometer registra
+los medidores la primera vez que se invoca el método guardado, así que comprobarlas antes
+del primer análisis siempre da rojo. La verificación en vivo las mira al final, no junto a
+las sondas.
+
+### 8.2 Un detalle de despliegue que no se puede olvidar
+
+`/q/metrics` dice qué modelos se usan, cuánto falla cada proveedor y cuánto se consume. No
+debe publicarse junto a la API: se restringe por red o por proxy inverso. Está anotado
+también en `application.properties`, donde lo verá quien despliegue.

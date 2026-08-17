@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 
 /** Consulta de procesos de contratación en SECOP II. */
@@ -66,7 +65,8 @@ public class SecopCliente {
     private static final int MUESTRA_MINIMA = 200;
     private static final int LIMITE_MAXIMO_SOCRATA = 1000;
 
-    private final SecopApi api;
+    private final ConsultaResiliente consultas;
+    private final EstadoDeLaFuente estado;
     private final String datasetProcesos;
     private final String appToken;
 
@@ -78,17 +78,20 @@ public class SecopCliente {
      */
     @Inject
     public SecopCliente(
-            @RestClient SecopApi api,
+            ConsultaResiliente consultas,
+            EstadoDeLaFuente estado,
             @ConfigProperty(name = "agente.secop.dataset-procesos") String datasetProcesos,
             @ConfigProperty(name = "agente.secop.app-token") Optional<String> appToken) {
-        this.api = api;
+        this.consultas = consultas;
+        this.estado = estado;
         this.datasetProcesos = datasetProcesos;
         this.appToken = appToken.orElse("");
     }
 
     /** Constructor directo, para pruebas que no necesitan el contenedor. */
-    SecopCliente(SecopApi api, String datasetProcesos, String appToken) {
-        this.api = api;
+    SecopCliente(ConsultaResiliente consultas, String datasetProcesos, String appToken) {
+        this.consultas = consultas;
+        this.estado = new EstadoDeLaFuente();
         this.datasetProcesos = datasetProcesos;
         this.appToken = appToken == null ? "" : appToken;
     }
@@ -162,14 +165,17 @@ public class SecopCliente {
     private List<Map<String, Object>> consultar(
             int limite, int offset, String orden, String where, List<String> advertencias) {
         try {
-            return api.consultar(
+            List<Map<String, Object>> filas = consultas.consultar(
                     datasetProcesos, limite, offset, orden, where,
                     appToken.isBlank() ? null : appToken);
+            estado.registrarExito();
+            return filas;
         } catch (RuntimeException e) {
             // El detalle va al registro; al usuario, un mensaje de catálogo cerrado. La
             // excepción del cliente HTTP puede incluir la URL completa —con el app token
             // en la cadena de consulta— y esa cadena se pintaría en el navegador.
             LOG.warn("Error consultando SECOP", e);
+            estado.registrarFallo(e.getClass().getSimpleName());
             advertencias.add("La fuente de datos de SECOP II no respondió correctamente. "
                     + "Reintenta en unos minutos.");
             return null;

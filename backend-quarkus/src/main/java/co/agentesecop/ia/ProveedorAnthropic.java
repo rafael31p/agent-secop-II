@@ -60,6 +60,13 @@ public class ProveedorAnthropic extends ProveedorLangChain4j {
     @Override
     protected ChatModel construirModelo(String nombreModelo) {
         return AnthropicChatModel.builder()
+                // Sin reintento propio del cliente, a propósito: la política la declara
+                // `adapter.out.llm.PoliticaDeResiliencia` y tenerla también aquí las
+                // MULTIPLICA en vez de sumarlas. Se descubrió contando peticiones contra
+                // un proveedor falso: dos intentos declarados daban seis llamadas, porque
+                // LangChain4j reintenta tres veces por su cuenta. Es la misma trampa que
+                // avisaba SPEC-BE-02 para la transición, escondida en la biblioteca.
+                .maxRetries(0)
                 .apiKey(config.anthropic().apiKey().orElseThrow())
                 .modelName(nombreModelo)
                 .temperature(config.temperatura())

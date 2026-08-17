@@ -7,6 +7,8 @@ import co.agentesecop.application.port.out.RedactorDePrompts.Tarea;
 import co.agentesecop.domain.model.tender.AnalisisDePliego;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.temporal.ChronoUnit;
+import org.eclipse.microprofile.faulttolerance.Timeout;
 
 /**
  * Analiza un pliego.
@@ -28,7 +30,9 @@ public class ServicioDeAnalisis implements AnalizarPliego {
         this.prompts = prompts;
     }
 
+    /** Presupuesto de la petición completa. Ver {@code ServicioDeValidacion}. */
     @Override
+    @Timeout(value = 150_000, unit = ChronoUnit.MILLIS)
     public AnalisisDePliego analizar(ComandoDeAnalisis comando) {
         return modelo.estructurado(
                 prompts.sistema(Tarea.ANALISIS),

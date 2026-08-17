@@ -128,6 +128,13 @@ Va después porque los mecanismos se aplican como decoradores sobre los puertos.
 número de reintentos, el umbral del cortacircuitos y el presupuesto de tiempo son
 configuración, no código.
 
+**Ejecutada.** Los ocho puntos, hechos. 24 pruebas nuevas (164 en total), ningún
+`Thread.sleep` en `src/main/java`, y la política entera verificada contra una caída real
+del proveedor. Cinco hallazgos de la ejecución están en `SPEC-BE-02` §8; el que más
+importa es que **LangChain4j reintentaba por su cuenta** y los reintentos se multiplicaban
+por tres, cosa que solo se vio porque las pruebas cuentan peticiones al proveedor en vez
+de comprobar el resultado.
+
 ---
 
 ## Fase 4 · Frontend: arquitectura, reutilización y experiencia

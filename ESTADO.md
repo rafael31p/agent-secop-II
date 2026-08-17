@@ -6,8 +6,8 @@ Punto de retomada para la próxima sesión.
 
 | Componente | Ruta | Estado |
 |---|---|---|
-| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 88/88 pruebas y verificación en vivo completa. |
-| Frontend Next.js | `frontend-next/` | **Terminado y verificado**: 64/64 pruebas y recorrido completo en el navegador. |
+| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 164/164 pruebas, verificación en vivo y cadena completa coherente. |
+| Frontend Next.js | `frontend-next/` | **Terminado y verificado**: 75/75 pruebas y recorrido completo en el navegador. |
 | Backend Python (FastAPI) | `backend/` | Versión anterior. Funciona, ya es redundante. |
 | Frontend React (Vite) | `frontend/` | Versión anterior. **No sirve contra el backend Quarkus** (ver abajo). |
 
@@ -18,9 +18,9 @@ migración, comparando `frontend/src/types.ts` con los records de `dominio/`.
 
 Ambos backends usan el puerto 8000: solo uno a la vez.
 
-## Fases 0 y 1 del plan de mejora: ejecutadas
+## Fases 0, 1, 2 y 3 del plan de mejora: ejecutadas
 
-El repositorio ya es git, con CI, y las dos fases de mayor valor del
+El repositorio ya es git, con CI y flujo GitFlow, y las cuatro primeras fases del
 [plan](specs/01-PLAN-DE-MEJORA.md) están hechas. Publicado en GitHub bajo GPL-3.0.
 
 **Fase 0 · Red de seguridad**
@@ -48,7 +48,7 @@ El repositorio ya es git, con CI, y las dos fases de mayor valor del
 | 1.9 | Foco visible (`:focus-visible`) y salto al contenido |
 | 1.10 | `aria-live` en el chat y `role="status"` en las operaciones largas |
 
-Estado de las suites: **140/140 backend · 74/74 frontend**.
+Estado de las suites al cerrar esa fase: **140/140 backend · 74/74 frontend**.
 
 Verificado en el navegador tras los cambios: búsqueda, cancelación de una
 priorización sin dejar error, chat en streaming completo, foco visible con
@@ -97,6 +97,70 @@ afirmaba el formato por cable de una enumeración.
 `application/port/out` y `adapter/out` fuera del repositorio sin ninguna señal
 local: compilaban y las pruebas pasaban. Solo lo detectó CI, compilando desde un
 clon limpio.
+
+## Fase 3 · Resiliencia y observabilidad: cerrada
+
+Los ocho puntos, hechos. Lo que cambia de fondo es **dónde vive la política**: ya no es un
+bucle escrito a mano dentro del proveedor, sino un decorador declarado sobre el puerto y
+configurable sin recompilar.
+
+    ModeloDeLenguaje                   ← lo que inyectan los casos de uso
+      ModeloDeLenguajeResiliente         devuelve el tipo pedido
+        PoliticaDeResiliencia            @Retry @Timeout @CircuitBreaker @Bulkhead @Fallback
+          ModeloDeLenguajeMedido         latencia, resultado y consumo estimado
+            ModeloDeLenguajeLangChain4j  la llamada real
+
+| | Qué quedó |
+|---|---|
+| 3.1 | `conReintentos` borrado; MicroProfile Fault Tolerance en su lugar. **Ningún `Thread.sleep` en `src/main/java`** |
+| 3.2 | Decoradores sobre el puerto: resiliencia y métricas se heredan por composición |
+| 3.3 | Presupuesto por caso de uso (validación 240 s, análisis 150 s, propuesta 180 s, priorización 120 s) |
+| 3.4 | `/q/health/live` y `/q/health/ready` con sondas que comprueban, no que recitan |
+| 3.5 | Micrometer en `/q/metrics`: latencia por caso de uso, consumo estimado, y gratis las de Fault Tolerance |
+| 3.6 | `X-Correlation-Id` validado, devuelto en toda respuesta, en el cuerpo del error y en cada línea de registro |
+| 3.7 | 24 pruebas nuevas con WireMock que **cuentan peticiones al proveedor** |
+| 3.8 | Aislamiento de pruebas por defecto, con guardián que falla si alguna clave resuelve no vacía |
+
+Estado de las suites: **164/164 backend · 75/75 frontend**.
+
+### Cinco hallazgos de la fase que conviene no olvidar
+
+**LangChain4j reintenta por su cuenta.** Con `conReintentos` ya borrado y dos intentos
+declarados, el proveedor falso recibió **seis** peticiones: la política se multiplicaba por
+tres. Los cuatro proveedores llevan ahora `.maxRetries(0)`. Solo se detectó porque las
+pruebas cuentan peticiones; un `assertThrows` habría pasado en verde.
+
+**Sobrescribir por configuración cambia el número, no la unidad.** Con
+`delayUnit = SECONDS`, un `Retry/delay=2000` pide dos mil segundos. El arranque falló y por
+eso se vio; el mismo error en `Timeout/value` habría arrancado tan campante con un timeout
+de treinta y tres horas. Todo declara ahora `MILLIS`.
+
+**`@Fallback` no se empareja con una firma genérica**, y los interceptores de CDI no actúan
+sobre llamadas internas. De ahí que la política viva en un bean aparte con la firma borrada
+(`PoliticaDeResiliencia`) y el decorador haga el `cast`.
+
+**Las métricas también reciben entrada del usuario.** `/q/metrics` mostraba
+`proveedor="inventado"`: bastaba un bucle pidiendo proveedores al azar para llenar el
+almacén de series inútiles. El riesgo estaba anotado para el identificador de modelo y no
+para el campo de al lado.
+
+**La prueba que vigila las credenciales las imprimía.** `assertEquals("", clave)` publicaba
+la clave entera del `.env` en su mensaje de fallo, es decir, en el registro de CI, y
+justamente el día en que hubiera una clave real que filtrar. Ahora afirma sobre la
+longitud.
+
+### Verificado contra una caída real de Gemini
+
+Durante la verificación en vivo el proveedor devolvió `503 UNAVAILABLE — high demand` de
+verdad, y la política entera se ejercitó sin montar nada: tres reintentos gastados, cuatro
+fallos contados, circuito abierto, `/q/health/ready` en `DOWN` con `cortacircuitos: open`,
+respuestas inmediatas en vez de tres intentos por petición, y `POST /api/procesos/buscar`
+respondiendo con normalidad durante todo el episodio —que es el objetivo central de la
+fase—. El circuito se cerró solo al recuperarse el proveedor.
+
+Además, `verificar_en_vivo.py` pasa sus 8 secciones y `verificar_flujo_completo.py`
+confirma que la cadena buscar → priorizar → analizar → proponer → validar sigue siendo
+coherente de extremo a extremo.
 
 ## Frontend Next.js: cerrado
 
@@ -173,13 +237,11 @@ python verificar_en_vivo.py                    # en otra terminal
 
 Lo que sigue del plan, en orden:
 
-1. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Ya se puede: los
-   decoradores se aplican sobre los puertos, que ahora existen.
-2. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Va después de la 2 a
-   propósito: los decoradores se aplican sobre puertos que aún no existen.
-3. **Fase 4 · Frontend** (6-10 jornadas). Incluye `useAsyncAction`, que absorbe la
+1. **Fase 4 · Frontend** (6-10 jornadas). Incluye `useAsyncAction`, que absorbe la
    cancelación que la fase 1 dejó a medio camino, y persistir búsqueda y validación.
-4. **Fase 5 · Documentación y diagramas**, y **Fase 6 · Migración a inglés**.
+   Conviene añadirle leer y mostrar el `correlationId` del error, que el backend ya
+   devuelve y el frontend todavía ignora.
+2. **Fase 5 · Documentación y diagramas**, y **Fase 6 · Migración a inglés**.
 
 Y un asunto que el plan marca como **bloqueante y no técnico**: `SPEC-NT-02` (qué datos
 salen hacia terceros, con qué base y con qué aviso). Hasta que esté decidido y comunicado,
@@ -196,3 +258,13 @@ la herramienta no debería usarse con un pliego real de un cliente real.
   solo proceso es exacto; escalar horizontalmente exigiría un almacén compartido.
 - **`ia/`, `secop/` y `config/` siguen fuera del árbol `adapter/`.** Son
   adaptadores de hecho y las reglas los tratan como tales; falta recolocarlos.
+- **El cortacircuitos del modelo es uno y agregado, no uno por proveedor.**
+  MicroProfile lo asocia a un método, no a un argumento: si Gemini abre el circuito,
+  una petición dirigida a OpenAI también se repliega durante el reposo. Tenerlos
+  separados exigiría construirlos con la API programática y renunciar a declararlos.
+- **Cerrar la pestaña no detiene la llamada al modelo.** LangChain4j no expone un asa
+  para abortar una respuesta en curso, así que se siguen facturando tokens que nadie
+  leerá.
+- **Sin OpenTelemetry ni registro JSON.** Ambos estaban en SPEC-BE-05 y se dejan para
+  cuando exista un colector que los consuma; encenderlos hoy sería complejidad sin
+  destinatario.
