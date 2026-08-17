@@ -1,4 +1,4 @@
-# Estado del proyecto — 16 de agosto de 2026
+# Estado del proyecto — 17 de agosto de 2026
 
 Punto de retomada para la próxima sesión.
 
@@ -48,57 +48,55 @@ El repositorio ya es git, con CI, y las dos fases de mayor valor del
 | 1.9 | Foco visible (`:focus-visible`) y salto al contenido |
 | 1.10 | `aria-live` en el chat y `role="status"` en las operaciones largas |
 
-Estado de las suites: **119/119 backend · 74/74 frontend**.
+Estado de las suites: **140/140 backend · 74/74 frontend**.
 
 Verificado en el navegador tras los cambios: búsqueda, cancelación de una
 priorización sin dejar error, chat en streaming completo, foco visible con
 teclado y atributos ARIA presentes en el DOM.
 
-## Fase 2 · Arquitectura hexagonal: en curso
+## Fase 2 · Arquitectura hexagonal: cerrada
 
-De los nueve pasos de SPEC-BE-01 §4, hechos **1, 4 y 8**, y el 3 a medias.
+Los nueve pasos de SPEC-BE-01 §4, hechos. **La deuda congelada de ArchUnit pasó de
+482 a cero y el almacén se borró**: las reglas ya no admiten ni una infracción, así
+que una violación nueva rompe la compilación en el acto.
 
-| Paso | Estado | Qué quedó |
-|---|---|---|
-| 1 · Enumeraciones tras `CodedEnum` | ✅ | Cinco copias del mismo molde → una. `CodedEnumModule` en el adaptador. |
-| 2 · DTO de respuesta + mapeadores | ⬜ | Es lo que falta para vaciar `dominio/`. |
-| 3 · Quitar frameworks del dominio | 🟡 | Las solicitudes ya salieron (417 → 166 infracciones). Faltan las respuestas. |
-| 4 · `EstadoSalud` y `ProveedorDisponible` fuera | ✅ | No eran dominio: uno describe la instalación, otro un proveedor de modelos. |
-| 5 · Puertos de salida | ⬜ | Bloqueado: ver abajo. |
-| 6 · Partir `AgenteSecop` | ⬜ | El paso de riesgo alto. |
-| 7 · Prompts a Qute | ⬜ | |
-| 8 · Versión única | ✅ | Sale del `pom.xml`; había tres números y ya divergían. |
-| 9 · Almacén de ArchUnit vacío | ⬜ | Va por 244, desde 482. |
+    domain/       modelo y reglas de negocio, sin una sola dependencia externa
+    application/  port/in (casos de uso), port/out (puertos), service (5 servicios)
+    adapter/      in/rest (HTTP, DTO, mapeadores), out/llm, out/document
 
-**Deuda registrada: 482 → 244.** El desglose actual es 166 de
-`dominio → frameworks` (las anotaciones de los records de respuesta) y 78 de
-`servicio → adaptadores`.
+Criterios de aceptación de la spec, todos cumplidos: dominio sin imports de
+framework; prueba de reglas de negocio en JUnit puro en 92 ms; `adapter.in.rest`
+sin depender de `application.service`; `Enumeraciones.java` desaparecido con los
+códigos por cable idénticos; ningún servicio por encima de 64 líneas; la versión
+sale del `pom.xml`; y las pruebas existentes pasan sin tocar sus aserciones.
 
-### Lo que falta es un solo bloque, no cuatro pasos sueltos
+Pendiente de la fase, menor: los prompts siguen siendo constantes Java agrupadas
+tras un puerto, no plantillas Qute (punto 2.5). El defecto que ese punto quería
+cerrar —la composición frágil— ya está resuelto por otra vía.
 
-Conviene saberlo antes de empezar: los pasos 2, 5 y 6 están atados entre sí y
-hacerlos a medias deja el sistema peor que ahora.
+### Cuatro hallazgos de la fase que conviene no olvidar
 
-El nudo es que los mismos records sirven de contrato HTTP, de modelo y de esquema
-para el modelo de lenguaje. Un puerto de salida para el catálogo de SECOP tendría
-que recibir `FiltroProcesos`, que es un DTO de entrada HTTP, así que declararlo
-hoy cambiaría una infracción por otra. El puerto necesita un tipo de comando
-propio, y ese tipo aparece al partir `AgenteSecop` —el paso 6, el de riesgo
-alto—. La spec ya lo dice: ese paso conviene hacerlo en una sesión dedicada y sin
-mezclarlo con nada más.
+**El esquema del modelo sale de los nombres de constante y de campo.** LangChain4j
+lo deriva de ahí, no de los códigos de serialización, y los prompts le piden al
+modelo esos mismos nombres en español. Por eso las enumeraciones y los campos del
+dominio **no se pueden renombrar a inglés** —lo que la fase 6 quiere hacer— hasta
+que el adaptador de salida tenga su propio tipo de carga útil (SPEC-BE-01 §3.3).
+`EsquemaDelModeloTest` lo vigila.
 
-### Un hallazgo que cambia el orden de la fase 6
+**El chat le estaba pidiendo JSON al modelo.** Se componía quitando un bloque del
+prompt base con un `replace` contra una copia del literal, y la copia había dejado
+de coincidir. Componer quitando es frágil por construcción y falla en silencio;
+ahora se compone añadiendo.
 
-**Las constantes de las enumeraciones no se pueden renombrar a inglés todavía**,
-aunque SPEC-BE-01 §3.1 lo proponga. LangChain4j deriva el esquema JSON del
-**nombre de la constante**, no del código de serialización, y los prompts le
-piden al modelo esos mismos códigos en español. Renombrar dejaría el esquema
-diciendo una cosa y el prompt otra, y con esquema estricto gana el esquema: el
-prompt pasaría a mentirle al modelo sin que nada fallara de forma visible.
+**Un módulo de Jackson declarado como bean CDI no se instala.** Se descubre y se
+puede inyectar, pero no llega al `ObjectMapper`. Hay que usar
+`ObjectMapperCustomizer`. Las 106 pruebas de entonces pasaban igual porque ninguna
+afirmaba el formato por cable de una enumeración.
 
-El renombrado es seguro cuando el adaptador de modelos tenga su tipo de carga
-útil propio, como la propia spec prevé en §3.3. Mientras tanto,
-`EsquemaDelModeloTest` fija los valores y comprueba que el prompt los menciona.
+**`out/` en un `.gitignore` casa a cualquier profundidad.** Dejó seis archivos de
+`application/port/out` y `adapter/out` fuera del repositorio sin ninguna señal
+local: compilaban y las pruebas pasaban. Solo lo detectó CI, compilando desde un
+clon limpio.
 
 ## Frontend Next.js: cerrado
 
@@ -175,7 +173,8 @@ python verificar_en_vivo.py                    # en otra terminal
 
 Lo que sigue del plan, en orden:
 
-1. **Terminar la fase 2**, empezando por el bloque atado 2 + 5 + 6 descrito arriba.
+1. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Ya se puede: los
+   decoradores se aplican sobre los puertos, que ahora existen.
 2. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Va después de la 2 a
    propósito: los decoradores se aplican sobre puertos que aún no existen.
 3. **Fase 4 · Frontend** (6-10 jornadas). Incluye `useAsyncAction`, que absorbe la
@@ -188,14 +187,12 @@ la herramienta no debería usarse con un pliego real de un cliente real.
 
 ## Deuda registrada, para que no se olvide
 
-- **ArchUnit congela 244 infracciones** (166 de `dominio → frameworks`, 78 de
-  `servicio → adaptadores`). Están en `src/test/resources/archunit_store` y la fase 2 las
-  va borrando; empezó en 482. Las 78 no son deuda nueva: estaban camufladas porque los DTO
-  de solicitud vivían en el paquete `dominio`, y salieron a la luz al moverlos a su sitio.
-- **El dominio nuevo (`domain/`) se vigila sin congelar.** Nace limpio y nada puede
-  entrar ahí arrastrando un framework.
-- **ESLint deja 8 avisos**, siete del mismo patrón: restaurar estado en un efecto. Es
-  correcto para algo que no existe durante el render en servidor, y aun así encadena
-  renders; lo paga el reducer de los puntos 4.2 y 4.3.
-- **El límite de tasa es por instancia**, porque su estado vive en memoria. Con un solo
-  proceso es exacto; escalar horizontalmente exigiría un almacén compartido.
+- **ArchUnit ya no congela nada.** El almacén desapareció al pagar las 482
+  infracciones. Cinco reglas activas verifican la dirección de las dependencias en
+  cada compilación.
+- **ESLint deja 8 avisos** en el frontend, siete del mismo patrón: restaurar estado
+  en un efecto. Lo paga el reducer de los puntos 4.2 y 4.3.
+- **El límite de tasa es por instancia**, porque su estado vive en memoria. Con un
+  solo proceso es exacto; escalar horizontalmente exigiría un almacén compartido.
+- **`ia/`, `secop/` y `config/` siguen fuera del árbol `adapter/`.** Son
+  adaptadores de hecho y las reglas los tratan como tales; falta recolocarlos.
