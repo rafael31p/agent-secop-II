@@ -2,10 +2,14 @@ name: CI
 
 # Se ejecuta en cada empuje y en cada solicitud de cambios. El objetivo de esta
 # canalización es sencillo: que romper una suite sea imposible de ignorar.
+# Corre en todas las ramas del flujo, sin atajos: una suite que solo se ejecuta
+# en algunas ramas es una suite en la que no se puede confiar para decidir una
+# fusión. Ver specs/documentacion/SPEC-DOC-03.
 on:
   push:
-    branches: [main]
+    branches: [main, develop, "feature/**", "release/**", "hotfix/**"]
   pull_request:
+    branches: [main, develop]
   workflow_dispatch:
 
 # Un empuje nuevo cancela la ejecución anterior de la misma rama: no tiene

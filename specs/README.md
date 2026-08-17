@@ -60,6 +60,7 @@ implementar.
 |---|---|---|
 | [SPEC-DOC-01](documentacion/SPEC-DOC-01-documentacion-tecnica.md) | Documentación técnica, ADR y contrato OpenAPI como fuente única | 🟠 Media |
 | [SPEC-DOC-02](documentacion/SPEC-DOC-02-diagramas.md) | Diagramas: C4, componentes, secuencia, clases, estados y despliegue | 🟠 Media |
+| [SPEC-DOC-03](documentacion/SPEC-DOC-03-flujo-de-trabajo-git.md) | Flujo de trabajo con GitFlow | 🔴 Alta |
 
 ### Especificaciones no técnicas
 
@@ -83,8 +84,9 @@ Cada spec tiene la misma estructura:
 6. **Criterios de aceptación** — verificables, no opinables.
 7. **Riesgos y fuera de alcance** — lo que puede salir mal y lo que no se toca.
 
-**Estados:** `Propuesta` → `Aceptada` → `Implementada` → `Sustituida`. Todas nacen como
-`Propuesta`; nadie las ha aprobado todavía.
+**Estados:** `Propuesta` → `Aceptada` → `Implementada` → `Sustituida`. Casi todas siguen
+en `Propuesta`. Van por delante las que ya se ejecutaron: SPEC-BE-01 (fase 2, implementada),
+SPEC-BE-06 (fase 1, implementada en su mayor parte) y SPEC-DOC-03 (aceptada y montada).
 
 **Trazabilidad:** cada hallazgo del diagnóstico tiene un identificador (`BE-C1`, `FE-A5`,
 `NT-2`…) que aparece en la spec que lo cierra. Ningún hallazgo debería quedar huérfano; el
