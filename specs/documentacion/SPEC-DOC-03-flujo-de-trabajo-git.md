@@ -89,16 +89,29 @@ git switch -c feature/fase-3-resiliencia
 
 # ... trabajo y commits ...
 
-# Integrarlo
-git switch develop && git pull
-git merge --no-ff feature/fase-3-resiliencia
-git push && git branch -d feature/fase-3-resiliencia
+# Publicarlo y abrir la solicitud de cambios
+git push -u origin feature/fase-3-resiliencia
+gh pr create --base develop --fill
+
+# Cuando CI esté en verde
+gh pr merge --merge --delete-branch
 ```
 
-`--no-ff` no es opcional: obliga a crear un commit de fusión y por tanto deja en el
-historial dónde empezó y dónde acabó cada cambio. Sin él, una rama de veinte commits se
-disuelve en la línea principal y se pierde la unidad de trabajo, que es justo lo que se
-quiere poder revisar y revertir.
+**La integración va por solicitud de cambios, no por fusión local.** La primera versión de
+esta spec proponía `git merge --no-ff` en local y `git push`, que es el GitFlow de manual;
+al hacerlo, GitHub respondió «Bypassed rule violations for refs/heads/develop: 3 of 3
+required status checks are expected». Es decir: la protección de rama y la fusión local
+son incompatibles, porque un empuje del commit de fusión **es** un empuje directo. Se
+saltó porque quien lo hizo era administrador del repositorio.
+
+Corregido de dos maneras: la protección se aplica ahora también a los administradores
+—`enforce_admins`—, y la integración pasa por solicitud de cambios, que es como GitHub
+comprueba que CI pasó antes de dejar fusionar.
+
+Se usa `--merge` y no `--squash` ni `--rebase`, por el mismo motivo por el que el GitFlow
+clásico exige `--no-ff`: el commit de fusión deja en el historial dónde empezó y dónde
+acabó cada cambio. Con `--squash`, una rama de veinte commits se convierte en uno solo y
+se pierde el detalle; con `--rebase`, se pierde la unidad.
 
 Publicar una versión:
 
@@ -133,6 +146,9 @@ En GitHub, sobre `main` y `develop`:
 - Prohibido el empuje directo.
 - Exigir que CI pase antes de fusionar.
 - Exigir que la rama esté al día con el destino.
+- **Aplicar todo lo anterior también a los administradores.** Sin esto la protección es
+  decorativa para quien más la necesita: se comprobó empujando una fusión local a
+  `develop` y GitHub la dejó pasar avisando de que se saltaba tres comprobaciones.
 
 Con un solo desarrollador la protección parece burocracia, y no lo es: es lo que impide
 que un `git push` distraído a las once de la noche repita lo que ya pasó dos veces.
@@ -177,7 +193,8 @@ el repositorio es público y reescribirlo rompería cualquier clon. `develop` na
 ## 5. Criterios de aceptación
 
 1. `develop` existe, es la rama por defecto y CI corre sobre ella.
-2. Un empuje directo a `main` o a `develop` es rechazado por el servidor.
+2. Un empuje directo a `main` o a `develop` es rechazado por el servidor, **incluso
+   siendo administrador**.
 3. CI corre sobre `feature/*` sin configuración adicional.
 4. El estado desplegable actual está etiquetado.
 5. El historial de `main` no se ha reescrito.
