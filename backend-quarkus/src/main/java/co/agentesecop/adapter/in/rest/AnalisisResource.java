@@ -7,6 +7,7 @@ import co.agentesecop.adapter.in.rest.mapper.ProcesosMapper;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudAnalisis;
 import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
 import co.agentesecop.application.port.in.AnalizarPliego;
+import co.agentesecop.adapter.out.document.ExtraccionResiliente;
 import co.agentesecop.adapter.out.document.ExtractorDocumentos;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -27,10 +28,10 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 public class AnalisisResource {
 
     private final AnalizarPliego analizarPliego;
-    private final ExtractorDocumentos extractor;
+    private final ExtraccionResiliente extractor;
 
     @Inject
-    public AnalisisResource(AnalizarPliego analizarPliego, ExtractorDocumentos extractor) {
+    public AnalisisResource(AnalizarPliego analizarPliego, ExtraccionResiliente extractor) {
         this.analizarPliego = analizarPliego;
         this.extractor = extractor;
     }

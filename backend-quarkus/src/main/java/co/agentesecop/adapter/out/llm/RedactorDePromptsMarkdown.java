@@ -41,10 +41,13 @@ public class RedactorDePromptsMarkdown implements RedactorDePrompts {
     @Override
     public String sistema(Tarea tarea) {
         return switch (tarea) {
+            // El análisis recibe el pliego en prosa, sin ninguna tabla: añadirle la
+            // explicación del formato sería gastar tokens en describir algo que no va a
+            // ver. Las otras tres sí reciben listas.
             case ANALISIS -> conJson(Prompts.INSTRUCCION_ANALISIS);
-            case PROPUESTA -> conJson(Prompts.INSTRUCCION_PROPUESTA);
-            case VALIDACION -> conJson(Prompts.INSTRUCCION_VALIDACION);
-            case PRIORIZACION -> conJson(Prompts.INSTRUCCION_RELEVANCIA);
+            case PROPUESTA -> conTablas(conJson(Prompts.INSTRUCCION_PROPUESTA));
+            case VALIDACION -> conTablas(conJson(Prompts.INSTRUCCION_VALIDACION));
+            case PRIORIZACION -> conTablas(conJson(Prompts.INSTRUCCION_RELEVANCIA));
             // El chat responde en texto conversacional: simplemente no se le añade
             // el bloque de formato JSON.
             case CHAT -> Prompts.SISTEMA_BASE + "\n\n" + Prompts.INSTRUCCION_CHAT;
@@ -92,7 +95,7 @@ public class RedactorDePromptsMarkdown implements RedactorDePrompts {
                 .append('\n');
         if (!comando.requisitos().isEmpty()) {
             contenido.append("\n## Requisitos técnicos identificados (JSON)\n\n")
-                    .append(comoJson(comando.requisitos()))
+                    .append(comoTabla("requisitos", comando.requisitos()))
                     .append('\n');
         }
         if (noVacio(comando.textoPliego())) {
@@ -109,7 +112,7 @@ public class RedactorDePromptsMarkdown implements RedactorDePrompts {
                 new StringBuilder("# Validación de propuesta contra requisitos\n\n");
         agregarSi(contenido, "Objeto contractual", comando.objetoContractual());
         contenido.append("\n## Requisitos a verificar (JSON)\n\n")
-                .append(comoJson(requisitos))
+                .append(comoTabla("requisitos", requisitos))
                 .append("\n\n## Texto de la propuesta a evaluar\n\n")
                 .append(comando.textoPropuesta());
         return contenido.toString();
@@ -135,7 +138,7 @@ public class RedactorDePromptsMarkdown implements RedactorDePrompts {
                     .append(comando.perfilProveedor())
                     .append('\n');
         }
-        contenido.append("\n## Procesos (JSON)\n\n").append(comoJson(resumidos));
+        contenido.append("\n## Procesos\n\n").append(comoTabla("procesos", resumidos));
         return contenido.toString();
     }
 
@@ -160,6 +163,31 @@ public class RedactorDePromptsMarkdown implements RedactorDePrompts {
     /** Base, más la exigencia de JSON, más la instrucción de la tarea. */
     private static String conJson(String instruccion) {
         return Prompts.SISTEMA_BASE + "\n" + Prompts.FORMATO_JSON + "\n" + instruccion;
+    }
+
+    /** Y, para las tareas que reciben listas, cómo leerlas. */
+    private static String conTablas(String sistema) {
+        return sistema + "\n" + Prompts.FORMATO_ENTRADA_TOON;
+    }
+
+    /**
+     * Una lista, en la forma más barata que admita.
+     *
+     * <p>TOON tabular cuando la lista es uniforme —que es siempre, con los tipos que se
+     * mandan— y JSON cuando no. Que exista el camino de respaldo importa: el día que uno
+     * de estos records gane un campo de lista, el prompt seguirá siendo correcto en vez de
+     * producir una tabla mal formada, y la única consecuencia será gastar más tokens.
+     *
+     * <p>El bloque va rotulado con el nombre del formato porque el modelo tiene que saber
+     * qué está leyendo. Sin el rótulo, una cabecera {@code requisitos[7]{id,...}:} es una
+     * adivinanza; con él, es un formato que el modelo conoce.
+     */
+    private String comoTabla(String nombre, Object lista) {
+        Toon.Resultado tabla = Toon.tabla(jackson, nombre, lista);
+        if (!tabla.tabular()) {
+            return comoJson(lista);
+        }
+        return "```toon\n" + tabla.texto() + "\n```";
     }
 
     private String comoJson(Object valor) {

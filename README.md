@@ -216,7 +216,9 @@ Los planes gratuitos devuelven `503` y `429` con frecuencia. La política de res
 —reintentos, timeout, cortacircuitos y mamparo— se **declara** con MicroProfile Fault
 Tolerance y todos sus parámetros son configuración: ver la sección de resiliencia de
 `application.properties`. Cuando el fallo persiste, el error llega al cliente **con su
-explicación**, no como un `500` genérico (`adapter.in.rest.ManejadorErrores`):
+explicación**, no como un `500` genérico. Cada excepción tiene su propio
+`ExceptionMapper` en `adapter/in/rest/error/`, sobre una clase base que define el cuerpo y
+el registro una sola vez:
 
 | Situación | HTTP | Qué ve el usuario |
 |---|---|---|
@@ -226,7 +228,9 @@ explicación**, no como un `500` genérico (`adapter.in.rest.ManejadorErrores`):
 | Servicio caído / modelo inexistente | `404`/`502` | Qué modelo falló y cómo listarlos |
 | Filtro de contenido o respuesta truncada | `422` | Por qué se detuvo la generación |
 | Pliego demasiado grande | `422` | El tamaño admitido y qué hacer |
-| Circuito abierto, mamparo lleno o tiempo agotado | `503` | Que pruebe otro proveedor del selector |
+| Circuito abierto o tiempo agotado | `503` | Que pruebe otro proveedor del selector |
+| Máximo de trabajos simultáneos | `429` + `Retry-After` | Que reintente en unos segundos, **sin culpar al proveedor** |
+| Falta un dato para poder trabajar | `422` | Qué falta enviar |
 
 **Ningún texto originado en un sistema externo llega al navegador.** El detalle del
 proveedor va al registro junto a un identificador que sí viaja en la respuesta
@@ -240,7 +244,7 @@ incluye la credencial.
 
 ```bash
 cd backend-quarkus
-./mvnw test                    # 164 pruebas, sin red ni credenciales
+./mvnw test                    # 193 pruebas, sin red ni credenciales
 python verificar_en_vivo.py    # extremo a extremo contra el servidor levantado
 ```
 

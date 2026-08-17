@@ -1,6 +1,16 @@
 package co.agentesecop.ia;
 
+import co.agentesecop.adapter.out.llm.error.ContextoDemasiadoGrande;
+import co.agentesecop.adapter.out.llm.error.CredencialInvalida;
+import co.agentesecop.adapter.out.llm.error.CuotaAgotada;
+import co.agentesecop.adapter.out.llm.error.ErrorDelAgente;
+import co.agentesecop.adapter.out.llm.error.IdentificadorDeModeloInvalido;
+import co.agentesecop.adapter.out.llm.error.ModeloDesconocido;
+import co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado;
+import co.agentesecop.adapter.out.llm.error.RespuestaInutilizable;
+import co.agentesecop.adapter.out.llm.error.ServicioDelProveedorCaido;
 import co.agentesecop.config.ConfiguracionIA;
+import co.agentesecop.domain.shared.Texto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -22,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 
@@ -51,6 +62,15 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
      * en memoria hasta que la JVM se queda sin ella.
      */
     private static final int MAXIMO_MODELOS_CACHEADOS = 16;
+
+    /**
+     * Cuánto puede acumularse sin que el cliente lea.
+     *
+     * <p>Mil fragmentos son una respuesta larguísima; más que eso no es un usuario
+     * leyendo despacio, es un consumidor que no consume. Tener un techo convierte la fuga
+     * de memoria en un fallo acotado y visible.
+     */
+    private static final int TOPE_DE_FRAGMENTOS_EN_VUELO = 1_000;
 
     /** Forma admitida de un identificador de modelo. Ver {@link #resolverModelo}. */
     private static final Pattern FORMA_DE_MODELO =
@@ -122,7 +142,7 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
         }
         String limpio = solicitado.trim();
         if (!FORMA_DE_MODELO.matcher(limpio).matches()) {
-            throw new ErroresIA.PeticionInvalida(
+            throw new IdentificadorDeModeloInvalido(
                     "El identificador de modelo no tiene una forma válida. Consulta "
                             + "GET /api/proveedores para ver los disponibles.");
         }
@@ -131,14 +151,14 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
 
     private void exigirConfigurado() {
         if (!configurado()) {
-            throw new ErroresIA.ProveedorNoConfigurado(motivoNoDisponible());
+            throw new ProveedorNoConfigurado(motivoNoDisponible());
         }
     }
 
     private void exigirTamanoRazonable(PeticionIA peticion) {
         int caracteres = peticion.caracteres();
         if (caracteres > LIMITE_CARACTERES) {
-            throw new ErroresIA.ContextoDemasiadoGrande(
+            throw new ContextoDemasiadoGrande(
                     "El material recibido tiene %,d caracteres y supera el límite de %,d. "
                             .formatted(caracteres, LIMITE_CARACTERES)
                             + "Divídelo por capítulos (por ejemplo, el anexo técnico "
@@ -177,7 +197,7 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
                 .orElse("");
 
         if (texto.isEmpty()) {
-            throw new ErroresIA.RespuestaInutilizable(
+            throw new RespuestaInutilizable(
                     "El modelo devolvió una respuesta vacía (motivo: %s)."
                             .formatted(respuesta.finishReason()));
         }
@@ -185,9 +205,11 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
         try {
             return jackson.readValue(recortarACuerpoJson(texto), tipo);
         } catch (Exception e) {
+            // El texto es la respuesta del modelo: entra sin más control que el de su
+            // proveedor, y sin sanear puede plantar líneas falsas en el registro.
             LOG.warnf("Respuesta no conforme al esquema (%s): %s",
-                    nombreModelo, texto.substring(0, Math.min(500, texto.length())));
-            throw new ErroresIA.RespuestaInutilizable(
+                    nombreModelo, Texto.paraRegistro(texto, 500));
+            throw new RespuestaInutilizable(
                     "El modelo devolvió una respuesta que no cumple el esquema esperado. "
                             + "Reintenta; si persiste, prueba con un modelo más capaz.",
                     e);
@@ -247,25 +269,42 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
 
         ChatRequest solicitud = ChatRequest.builder().messages(mensajes(peticion)).build();
 
-        return Multi.createFrom().emitter(emisor ->
-                modelo.chat(solicitud, new StreamingChatResponseHandler() {
-                    @Override
-                    public void onPartialResponse(String fragmento) {
-                        if (fragmento != null && !fragmento.isEmpty()) {
-                            emisor.emit(fragmento);
+        return Multi.createFrom().<String>emitter(
+                emisor -> {
+                    // Si el cliente se va, deja de emitirse. No aborta la llamada al
+                    // proveedor —LangChain4j no expone ningún asidero para cancelar una
+                    // respuesta en curso— pero sí corta el consumo de memoria: sin esto,
+                    // el manejador seguía llamando a `emit` sobre un emisor muerto para
+                    // una respuesta que ya nadie iba a leer.
+                    AtomicBoolean vivo = new AtomicBoolean(true);
+                    emisor.onTermination(() -> vivo.set(false));
+
+                    modelo.chat(solicitud, new StreamingChatResponseHandler() {
+                        @Override
+                        public void onPartialResponse(String fragmento) {
+                            if (vivo.get() && fragmento != null && !fragmento.isEmpty()) {
+                                emisor.emit(fragmento);
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onCompleteResponse(ChatResponse respuesta) {
-                        emisor.complete();
-                    }
+                        @Override
+                        public void onCompleteResponse(ChatResponse respuesta) {
+                            emisor.complete();
+                        }
 
-                    @Override
-                    public void onError(Throwable error) {
-                        emisor.fail(traducir(error, nombreModelo));
-                    }
-                }));
+                        @Override
+                        public void onError(Throwable error) {
+                            emisor.fail(traducir(error, nombreModelo));
+                        }
+                    });
+                },
+                // Buffer ACOTADO, y ahí está el cambio. Sin este parámetro, el emisor usa
+                // BUFFER sin cota: un cliente lento —o una pestaña en segundo plano—
+                // acumulaba fragmentos en memoria sin techo mientras el proveedor
+                // entregaba a toda velocidad. Descartar fragmentos no es opción, porque
+                // mutilaría la respuesta; lo correcto es que un consumidor que no consume
+                // produzca un fallo acotado y visible en vez de crecer sin control.
+                TOPE_DE_FRAGMENTOS_EN_VUELO);
     }
 
     // ------------------------------------------------------------------ auxiliares
@@ -291,66 +330,50 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
      * líneas con {@code Thread.sleep} que retenían un hilo de plataforma hasta quince
      * minutos en el peor caso, sin cortacircuitos —la petición mil pagaba los mismos tres
      * intentos que la primera— y sin métricas. Lo sustituye
-     * {@code adapter.out.llm.ModeloDeLenguajeResiliente}, que declara la política con
-     * anotaciones de MicroProfile Fault Tolerance.
+     * {@code adapter.out.llm.PoliticaDeResiliencia}, que la declara con anotaciones de
+     * MicroProfile Fault Tolerance.
      *
      * <p>Lo que queda de aquel código es lo único que no era reimplementar el estándar: la
      * <em>clasificación</em>. El tipo que devuelve este método es lo que decide si se
      * reintenta, porque {@code @Retry(retryOn = …)} razona sobre clases.
      */
-    protected ErroresIA.ErrorAgente traducir(Throwable error, String nombreModelo) {
-        if (error instanceof ErroresIA.ErrorAgente yaTraducido) {
+    protected ErrorDelAgente traducir(Throwable error, String nombreModelo) {
+        if (error instanceof ErrorDelAgente yaTraducido) {
             return yaTraducido;
         }
         String mensaje = mensajeCompleto(error);
         String minusculas = mensaje.toLowerCase();
 
         if (contiene(minusculas, "api key", "api_key", "unauthorized", "401", "invalid key")) {
-            return new ErroresIA.CredencialInvalida(
-                    "La clave de %s es inválida o falta. Revisa la configuración."
-                            .formatted(etiqueta()),
-                    error);
+            return new CredencialInvalida(etiqueta(), error);
         }
         if (contiene(minusculas, "quota", "rate limit", "429", "resource_exhausted")) {
-            return new ErroresIA.FalloTransitorio(
-                    "Se agotó la cuota de %s. Espera unos minutos o revisa los límites "
-                            .formatted(etiqueta()) + "de tu plan.",
-                    429, error);
+            return new CuotaAgotada(etiqueta(), error);
         }
         if (contiene(minusculas, "not found", "404", "no longer available", "does not exist")) {
-            return new ErroresIA.ModeloDesconocido(
-                    ("El modelo '%s' no existe en %s o tu clave no tiene acceso a él. "
-                            + "Consulta GET /api/proveedores para ver los disponibles.")
-                            .formatted(nombreModelo, etiqueta()),
-                    error);
+            return new ModeloDesconocido(nombreModelo, etiqueta(), error);
         }
         if (contiene(minusculas, "safety", "blocked", "content filter", "prohibited")) {
-            return new ErroresIA.RespuestaInutilizable(
+            return new RespuestaInutilizable(
                     "Los filtros de contenido de %s bloquearon la respuesta. "
                             .formatted(etiqueta())
                             + "Revisa el material enviado.");
         }
         if (contiene(minusculas, "503", "unavailable", "overloaded", "high demand",
                 "500", "internal error", "timeout", "timed out")) {
-            return new ErroresIA.FalloTransitorio(
-                    "El servicio de %s falló temporalmente. Reintenta.".formatted(etiqueta()),
-                    502, error);
+            return ServicioDelProveedorCaido.temporal(etiqueta(), error);
         }
         // Rama por defecto: lo inesperado. Justo por eso NO puede llevar el texto del
         // proveedor a la respuesta HTTP. Las cinco ramas anteriores clasifican lo
         // conocido y redactan un mensaje propio; aquí no se sabe qué contiene `mensaje`,
         // y en Google AI la clave de la API viaja en la cadena de consulta de la URL.
         //
-        // El detalle no se pierde: viaja como causa de la excepción y `ManejadorErrores`
+        // El detalle no se pierde: viaja como causa de la excepción y el mapeador
         // lo registra junto al identificador que sí ve el usuario.
         //
         // Se clasifica como transitorio, que es lo que ya hacía el reintento artesanal al
         // devolver 502: ante lo desconocido conviene reintentar una vez antes de rendirse.
-        return new ErroresIA.FalloTransitorio(
-                ("%s devolvió un error que no se pudo clasificar. Reintenta; si persiste, "
-                        + "cita el identificador de este error al reportarlo.")
-                        .formatted(etiqueta()),
-                502, error);
+        return ServicioDelProveedorCaido.sinClasificar(etiqueta(), error);
     }
 
     /** Los proveedores suelen anidar el detalle útil en la causa. */

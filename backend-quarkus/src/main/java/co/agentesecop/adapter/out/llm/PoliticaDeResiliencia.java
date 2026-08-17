@@ -2,7 +2,9 @@ package co.agentesecop.adapter.out.llm;
 
 import co.agentesecop.application.port.out.ModeloDeLenguaje;
 import co.agentesecop.application.port.out.SeleccionDeModelo;
-import co.agentesecop.ia.ErroresIA;
+import co.agentesecop.adapter.out.llm.error.FalloTransitorio;
+import co.agentesecop.adapter.out.llm.error.ProveedorNoDisponible;
+import co.agentesecop.domain.shared.Texto;
 import co.agentesecop.ia.RegistroProveedores;
 import io.smallrye.faulttolerance.api.CircuitBreakerName;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -13,7 +15,6 @@ import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
-import org.eclipse.microprofile.faulttolerance.exceptions.BulkheadException;
 import org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.jboss.logging.Logger;
@@ -53,9 +54,9 @@ import org.jboss.logging.Logger;
  * <h2>Por qué tipos y no códigos HTTP</h2>
  *
  * <p>{@code retryOn} y {@code failOn} razonan sobre clases. Que
- * {@link ErroresIA.FalloTransitorio} sea un tipo propio —y no un {@code if} sobre
+ * {@link FalloTransitorio} sea un tipo propio —y no un {@code if} sobre
  * {@code estadoHttp()}— es exactamente lo que permite que la política sea declarativa. Un
- * {@link ErroresIA.CredencialInvalida} ni se reintenta ni cuenta para abrir el circuito:
+ * {@link co.agentesecop.adapter.out.llm.error.CredencialInvalida} ni se reintenta ni cuenta para abrir el circuito:
  * una clave mal puesta falla rápido y no envenena al proveedor para todos.
  *
  * <h2>Todo esto es configuración</h2>
@@ -97,18 +98,23 @@ public class PoliticaDeResiliencia {
             // para no ser un tercer límite sorpresa: quien debe cortar antes es el timeout
             // por intento o el presupuesto del caso de uso, no este tope.
             maxDuration = 400_000, durationUnit = ChronoUnit.MILLIS,
-            retryOn = ErroresIA.FalloTransitorio.class)
+            retryOn = FalloTransitorio.class)
     @CircuitBreaker(requestVolumeThreshold = 8,
             failureRatio = 0.5,
             delay = 30_000, delayUnit = ChronoUnit.MILLIS,
             successThreshold = 2,
-            failOn = ErroresIA.FalloTransitorio.class)
+            failOn = FalloTransitorio.class)
     @CircuitBreakerName(CIRCUITO)
     @Bulkhead(12)
+    // BulkheadException ya NO entra aquí, y la diferencia importa. El repliegue dice
+    // «el proveedor no responde, prueba con otro», y con el mamparo lleno eso es dos
+    // veces falso: el proveedor está sano, y cambiar de proveedor no ayuda porque el
+    // mamparo es el mismo para todos. Culpar a un tercero de un límite propio manda al
+    // usuario a una solución que no puede funcionar. Lo traduce `MapeadorMamparoLleno`
+    // a un 429 con Retry-After, que además el frontend ya sabe presentar.
     @Fallback(fallbackMethod = "noDisponible",
             applyOn = {
                 CircuitBreakerOpenException.class,
-                BulkheadException.class,
                 TimeoutException.class
             })
     public Object estructurado(
@@ -119,21 +125,27 @@ public class PoliticaDeResiliencia {
     /**
      * Lo que ve el usuario cuando la llamada ni siquiera se intentó.
      *
-     * <p>Cubre los tres casos en que el problema no es el proveedor sino nuestra decisión
-     * de no llamarlo —circuito abierto, mamparo lleno, presupuesto agotado—. MicroProfile
-     * no pasa la excepción al método de repliegue, así que el mensaje no distingue cuál de
-     * los tres fue; el detalle queda en el registro junto al identificador de correlación,
-     * que es lo que permite reconstruirlo después.
+     * <p>Cubre los dos casos en que la culpa <em>sí</em> es del proveedor: el circuito
+     * abierto porque venía fallando, y el presupuesto agotado porque no contestó a tiempo.
+     * MicroProfile no pasa la excepción al método de repliegue, así que el mensaje no
+     * distingue cuál de los dos fue; el detalle queda en el registro junto al identificador
+     * de correlación, que es lo que permite reconstruirlo después.
      *
      * <p>El mensaje nombra al proveedor y sugiere cambiarlo. Hay cinco configurables: esa
      * frase es lo que convierte una caída total en una degradación.
      */
     public Object noDisponible(
             String sistema, String usuario, SeleccionDeModelo seleccion, Class<?> tipo) {
-        String proveedor = proveedorDe(seleccion);
+        // `proveedor` sale del cuerpo de la petición, así que va saneado a los dos sitios
+        // donde acaba. Al registro, porque un salto de línea en ese valor permite fabricar
+        // una entrada de registro entera: basta con enviar un nombre de proveedor que
+        // lleve un salto de línea seguido de una línea de auditoría inventada.
+        // Y al mensaje, porque se le devuelve al usuario y no tiene sentido reflejarle diez
+        // mil caracteres de lo que envió.
+        String proveedor = Texto.paraRegistro(proveedorDe(seleccion), 40);
         LOG.warnf("Repliegue del modelo: %s no está disponible (circuito abierto, mamparo "
                 + "lleno o tiempo agotado) para %s", proveedor, tipo.getSimpleName());
-        throw new ErroresIA.ProveedorNoDisponible(
+        throw new ProveedorNoDisponible(
                 ("%s no está respondiendo o está saturado. Prueba con otro proveedor desde "
                         + "el selector, o reintenta en unos minutos.").formatted(proveedor));
     }

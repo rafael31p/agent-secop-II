@@ -7,7 +7,8 @@ import co.agentesecop.adapter.in.rest.mapper.ProcesosMapper;
 import co.agentesecop.adapter.in.rest.mapper.PropuestasMapper;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudRelevancia;
-import co.agentesecop.ia.ErroresIA;
+import co.agentesecop.adapter.in.rest.error.CuerpoDeError;
+import co.agentesecop.domain.shared.PeticionInvalida;
 import co.agentesecop.secop.SecopCliente;
 import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
 import co.agentesecop.application.port.in.PriorizarProcesos;
@@ -48,7 +49,7 @@ public class ProcesosResource {
         if (filtro.rangoDeValorInvertido()) {
             throw new WebApplicationException(
                     Response.status(422)
-                            .entity(ManejadorErrores.Detalle.de(
+                            .entity(CuerpoDeError.de(
                                     "valorMin no puede ser mayor que valorMax."))
                             .build());
         }
@@ -63,7 +64,7 @@ public class ProcesosResource {
                 .map(ProcesosMapper::aDto)
                 .orElseThrow(() -> new WebApplicationException(
                         Response.status(404)
-                                .entity(ManejadorErrores.Detalle.de(
+                                .entity(CuerpoDeError.de(
                                         "No se encontró el proceso '%s' en SECOP II."
                                                 .formatted(idProceso)))
                                 .build()));
@@ -74,7 +75,7 @@ public class ProcesosResource {
     @Operation(summary = "Clasifica procesos por categoría de TI y encaje con el proveedor")
     public RespuestaRelevancia priorizar(@Valid SolicitudRelevancia solicitud) {
         if (solicitud.procesos().isEmpty()) {
-            throw new ErroresIA.PeticionInvalida("Envía al menos un proceso para priorizar.");
+            throw new PeticionInvalida("Envía al menos un proceso para priorizar.");
         }
         return PropuestasMapper.aDto(priorizarProcesos.priorizar(ComandosMapper.aComando(solicitud)));
     }

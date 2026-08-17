@@ -87,6 +87,28 @@ public final class Prompts {
             texto antes ni después, sin bloques de código Markdown.
             """;
 
+    /**
+     * Cómo leer las tablas del material de entrada.
+     *
+     * <p>Se añade solo a las tareas que reciben listas —propuesta, validación y
+     * priorización—, y por adición, como {@link #FORMATO_JSON}. Componer quitando bloques
+     * de un prompt base ya costó una vez que el chat pidiera JSON sin que nada avisara.
+     *
+     * <p>Explicarle el formato al modelo no es opcional aunque TOON sea legible: una
+     * cabecera `requisitos[7]{id,...}:` sin contexto es una adivinanza, y con contexto es
+     * una tabla. El número entre corchetes se declara justamente para que el modelo pueda
+     * comprobar que no se le quedó ninguna fila.
+     */
+    public static final String FORMATO_ENTRADA_TOON = """
+            ## Formato del material de entrada
+            Las listas vienen en TOON, una tabla compacta. La cabecera
+            `nombre[N]{campo1,campo2,...}:` declara cuántas filas hay y qué columna es
+            cada una; debajo va una fila por elemento, con los valores separados por
+            comas y en ese mismo orden. Los valores con comas, dos puntos o comillas van
+            entrecomillados. Trata cada fila como un objeto con esos campos, y verifica
+            que procesas exactamente las N filas anunciadas.
+            """;
+
     public static final String INSTRUCCION_ANALISIS = """
             Analiza el material del proceso y extrae la estructura de requisitos técnicos.
 

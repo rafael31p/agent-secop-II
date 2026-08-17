@@ -7,6 +7,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,7 +16,7 @@ import co.agentesecop.application.port.in.AnalizarPliego;
 import co.agentesecop.application.port.out.ModeloDeLenguaje;
 import co.agentesecop.application.port.out.SeleccionDeModelo;
 import co.agentesecop.domain.model.tender.AnalisisDePliego;
-import co.agentesecop.ia.ErroresIA;
+import org.eclipse.microprofile.faulttolerance.exceptions.BulkheadException;
 import co.agentesecop.secop.InyectarSecopFalso;
 import co.agentesecop.secop.ServidorSecopFalso;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -176,7 +178,7 @@ class PresupuestoYMamparoTest {
 
         // 1) El modelo rechaza rápido en vez de encolar indefinidamente...
         long inicio = System.nanoTime();
-        assertThrows(ErroresIA.ProveedorNoDisponible.class, this::analizarDirecto);
+        assertThrows(BulkheadException.class, this::analizarDirecto);
         long rechazo = (System.nanoTime() - inicio) / 1_000_000;
         assertTrue(rechazo < 2_000,
                 "El rechazo del mamparo debe ser inmediato y tardó %d ms".formatted(rechazo));
@@ -189,6 +191,52 @@ class PresupuestoYMamparoTest {
                 .when().post("/api/procesos/buscar")
                 .then().statusCode(200)
                 .body("procesos", hasSize(1));
+
+        ocupante.interrupt();
+    }
+
+    /**
+     * Y el mamparo lleno no puede parecer una caída del proveedor.
+     *
+     * <p>Antes, {@code BulkheadException} compartía repliegue con el cortacircuitos y salía
+     * como 503 diciendo «{proveedor} no está respondiendo o está saturado, prueba con otro
+     * proveedor». Con doce análisis en vuelo —cuatro usuarios lo consiguen— el decimotercero
+     * recibía dos falsedades: el proveedor estaba sano, y cambiar de proveedor no ayudaba
+     * porque el mamparo y el cortacircuitos son los mismos para todos. Culpar a un tercero
+     * de un límite propio manda al usuario a una salida que no existe.
+     */
+    @Test
+    @DisplayName("El mamparo lleno da 429 con Retry-After y no culpa al proveedor")
+    void elMamparoNoCulpaAlProveedor() throws InterruptedException {
+        proveedorQueNoResponde();
+
+        CountDownLatch enVuelo = new CountDownLatch(1);
+        Thread ocupante = new Thread(() -> {
+            enVuelo.countDown();
+            try {
+                analizarDirecto();
+            } catch (RuntimeException esperado) {
+                // Su papel es ocupar el único permiso.
+            }
+        }, "ocupante-del-mamparo");
+        ocupante.setDaemon(true);
+        ocupante.start();
+        assertTrue(enVuelo.await(5, TimeUnit.SECONDS), "El ocupante no arrancó");
+        Thread.sleep(500);
+
+        String detalle = given().contentType(ContentType.JSON)
+                .body("""
+                        {"textoPliego": "%s", "objetoContractual": "Portal"}
+                        """.formatted("Anexo tecnico con requisitos de accesibilidad. ".repeat(3)))
+                .when().post("/api/analisis/requisitos")
+                .then().statusCode(429)
+                .header("Retry-After", notNullValue())
+                .extract().jsonPath().getString("detail");
+
+        assertTrue(detalle.contains("simultáneos"), detalle);
+        assertFalse(detalle.contains("otro proveedor"),
+                "Sugerir cambiar de proveedor no puede ayudar: el mamparo es el mismo. "
+                        + detalle);
 
         ocupante.interrupt();
     }

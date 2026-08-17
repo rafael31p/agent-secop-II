@@ -2,7 +2,7 @@ package co.agentesecop.adapter.out.llm;
 
 import co.agentesecop.application.port.out.ModeloDeLenguaje;
 import co.agentesecop.application.port.out.SeleccionDeModelo;
-import co.agentesecop.ia.ErroresIA;
+import co.agentesecop.adapter.out.llm.error.ErrorDelAgente;
 import co.agentesecop.ia.RegistroProveedores;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -71,7 +71,7 @@ public class ModeloDeLenguajeMedido implements ModeloDeLenguaje {
             T respuesta = delegado.estructurado(sistema, usuario, seleccion, tipo);
             contarTokens(seleccion, longitud(sistema) + longitud(usuario));
             return respuesta;
-        } catch (ErroresIA.ErrorAgente e) {
+        } catch (ErrorDelAgente e) {
             resultado = e.getClass().getSimpleName();
             throw e;
         } catch (RuntimeException e) {

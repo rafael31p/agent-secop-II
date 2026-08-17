@@ -24,13 +24,13 @@ import java.util.List;
 public class ModeloDeLenguajeResiliente implements ModeloDeLenguaje {
 
     private final PoliticaDeResiliencia politica;
-    private final ModeloDeLenguaje medido;
+    private final PoliticaDeStreaming streaming;
 
     @Inject
     public ModeloDeLenguajeResiliente(
-            PoliticaDeResiliencia politica, @Medido ModeloDeLenguaje medido) {
+            PoliticaDeResiliencia politica, PoliticaDeStreaming streaming) {
         this.politica = politica;
-        this.medido = medido;
+        this.streaming = streaming;
     }
 
     @Override
@@ -40,15 +40,16 @@ public class ModeloDeLenguajeResiliente implements ModeloDeLenguaje {
     }
 
     /**
-     * El flujo va sin política declarada, y es una omisión consciente.
+     * El flujo tiene su propia política, y por buenas razones distintas.
      *
-     * <p>Fault Tolerance sabe envolver métodos síncronos y {@code Uni}, pero no
-     * {@code Multi}, y tampoco tendría mucho sentido: no se reintenta una respuesta que ya
-     * empezó a emitirse al navegador. Lo que protege al chat es el mamparo que acota las
-     * llamadas estructuradas —las caras— y el límite de peticiones por clave.
+     * <p>No lleva reintentos ni cortacircuitos: no se reintenta una respuesta que ya empezó
+     * a emitirse al navegador. Pero sí lleva una cota de conversaciones simultáneas, que es
+     * lo que faltaba —ver {@link PoliticaDeStreaming}—. El Javadoc anterior afirmaba que el
+     * chat quedaba protegido por el mamparo de las llamadas estructuradas; no era cierto,
+     * porque los permisos se cuentan por método y el flujo no pasa por ese.
      */
     @Override
     public Multi<String> flujo(String sistema, List<Turno> turnos, SeleccionDeModelo seleccion) {
-        return medido.flujo(sistema, turnos, seleccion);
+        return streaming.flujo(sistema, turnos, seleccion);
     }
 }

@@ -353,3 +353,52 @@ el `CHANGELOG` y se soporta el nombre antiguo un ciclo con
 - Conteo de tokens y estimación de coste (`SPEC-BE-05`).
 - Caché de respuestas del modelo.
 - Selección automática de proveedor por coste o calidad.
+
+---
+
+## 8. Adelantado en la fase 3: la jerarquía de excepciones (§3.4)
+
+El §3.4 de esta spec —excepciones tipadas en un paquete propio— se implementó antes de
+tiempo, porque `SPEC-BE-02` no podía existir sin él: `@Retry(retryOn = …)` razona sobre
+clases, no sobre códigos HTTP.
+
+Lo que quedó, en `adapter/out/llm/error/`, una clase por excepción y jerarquía sellada:
+
+```
+ErrorDelAgente
+├── PeticionDeModelo…      IdentificadorDeModeloInvalido, ContextoDemasiadoGrande
+├── RespuestaInutilizable
+├── ProveedorDesconocido, ProveedorNoConfigurado, ProveedorNoDisponible
+└── FalloDelProveedor
+    ├── CredencialInvalida          no se reintenta
+    ├── ModeloDesconocido           no se reintenta
+    └── FalloTransitorio            SÍ se reintenta, y solo esto abre el circuito
+        ├── CuotaAgotada            429
+        └── ServicioDelProveedorCaido   502
+```
+
+Dos desviaciones respecto a lo que decía esta spec, ambas a mejor:
+
+**El código HTTP salió de la excepción.** La spec y `SPEC-BE-06` §3.3 preveían un
+`httpStatus()` en la clase base. No lo lleva: el estado lo pone un `ExceptionMapper` por
+excepción, en `adapter/in/rest/error/`, con una clase base que define el proceso de
+respuesta una sola vez. Una decisión de transporte no tiene por qué viajar dentro de una
+excepción del núcleo —la misma excepción es un 429 por HTTP y no es nada por una cola—.
+
+**Y eso destapó un defecto en producción.** Con un único manejador que capturaba la
+jerarquía entera, cualquier excepción que no heredara de ella caía en el comportamiento por
+defecto sin que nadie se enterara. Pasó: `domain.shared.PeticionInvalida` se movió al
+dominio en la fase 2 y se quedó sin traducir, de modo que
+`POST /api/propuestas/generar` sin requisitos ni pliego devolvía **500 Internal Server
+Error** sin `detail` ni identificador de correlación. Comprobado contra el servicio real
+antes de arreglarlo. Con un mapeador por excepción, un tipo sin mapear se ve al leer la
+lista.
+
+**`FalloTransitorio` se partió en dos** (`CuotaAgotada`, `ServicioDelProveedorCaido`)
+justamente porque, sin el código dentro, hacía falta un tipo por respuesta distinta. El
+resultado es mejor: «se agotó tu cuota, espera unos minutos» y «el servicio falló» son
+mensajes distintos y ahora son tipos distintos.
+
+Lo que sigue pendiente de esta spec: la descomposición de la clase base (§3.1), la caché
+con Caffeine (§3.2, ahora también en `SPEC-BE-08` §3.1), los constructores por proveedor
+(§3.3) y la configuración por mapa (§3.5).

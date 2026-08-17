@@ -82,6 +82,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!-- Para la purga periódica del limitador de tasa. `limpiarVencidos()`
+             existía sin que nadie lo llamara: el Javadoc prometía una limpieza
+             que no ocurría. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-scheduler</artifactId>
+        </dependency>
         <!-- ===== Proveedores de IA (LangChain4j como librería) ===== -->
         <dependency>
             <groupId>dev.langchain4j</groupId>

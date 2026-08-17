@@ -14,7 +14,8 @@ import co.agentesecop.adapter.out.llm.PoliticaDeResiliencia;
 import co.agentesecop.application.port.out.ModeloDeLenguaje;
 import co.agentesecop.application.port.out.SeleccionDeModelo;
 import co.agentesecop.domain.model.tender.AnalisisDePliego;
-import co.agentesecop.ia.ErroresIA;
+import co.agentesecop.adapter.out.llm.error.ProveedorNoDisponible;
+import co.agentesecop.adapter.out.llm.error.ServicioDelProveedorCaido;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -111,7 +112,7 @@ class CortacircuitosTest {
     /** Llena la ventana del circuito con fallos. */
     private void agotarLaPaciencia() {
         for (int i = 0; i < VENTANA; i++) {
-            assertThrows(ErroresIA.FalloTransitorio.class, this::analizar);
+            assertThrows(ServicioDelProveedorCaido.class, this::analizar);
         }
     }
 
@@ -122,7 +123,7 @@ class CortacircuitosTest {
         agotarLaPaciencia();
 
         // La llamada siguiente ya no debería salir a la red.
-        assertThrows(ErroresIA.ProveedorNoDisponible.class, this::analizar);
+        assertThrows(ProveedorNoDisponible.class, this::analizar);
 
         proveedor.verify(VENTANA, postRequestedFor(anyUrl()));
         assertTrue(circuitos.currentState(PoliticaDeResiliencia.CIRCUITO)
@@ -136,7 +137,7 @@ class CortacircuitosTest {
         proveedorCaido();
         agotarLaPaciencia();
 
-        var error = assertThrows(ErroresIA.ProveedorNoDisponible.class, this::analizar);
+        var error = assertThrows(ProveedorNoDisponible.class, this::analizar);
 
         // Hay cinco proveedores configurables: esta frase es lo que convierte una caída
         // total en una degradación. Un «error interno» dejaría al usuario sin salida.
@@ -151,7 +152,7 @@ class CortacircuitosTest {
     void seRecuperaSolo() throws InterruptedException {
         proveedorCaido();
         agotarLaPaciencia();
-        assertThrows(ErroresIA.ProveedorNoDisponible.class, this::analizar);
+        assertThrows(ProveedorNoDisponible.class, this::analizar);
 
         proveedorSano();
         // Abrirse no basta: un circuito que no vuelve a cerrarse deja el servicio caído

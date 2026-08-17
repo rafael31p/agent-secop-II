@@ -17,7 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import co.agentesecop.application.port.out.ModeloDeLenguaje;
 import co.agentesecop.application.port.out.SeleccionDeModelo;
 import co.agentesecop.domain.model.tender.AnalisisDePliego;
-import co.agentesecop.ia.ErroresIA;
+import co.agentesecop.adapter.out.llm.error.CredencialInvalida;
+import co.agentesecop.adapter.out.llm.error.CuotaAgotada;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -117,9 +118,8 @@ class ResilienciaDelModeloTest {
         proveedor.stubFor(post(urlPathEqualTo(ServidorModeloFalso.RUTA))
                 .willReturn(aResponse().withStatus(401).withBody("{\"error\":\"invalid api key\"}")));
 
-        var error = assertThrows(ErroresIA.CredencialInvalida.class, this::analizar);
+        assertThrows(CredencialInvalida.class, this::analizar);
 
-        assertEquals(401, error.estadoHttp());
         proveedor.verify(1, postRequestedFor(anyUrl()));
     }
 
@@ -181,11 +181,12 @@ class ResilienciaDelModeloTest {
         proveedor.stubFor(post(urlPathEqualTo(ServidorModeloFalso.RUTA))
                 .willReturn(aResponse().withStatus(429).withBody("{\"error\":\"quota\"}")));
 
-        var error = assertThrows(ErroresIA.FalloTransitorio.class, this::analizar);
+        var error = assertThrows(CuotaAgotada.class, this::analizar);
 
         // Que el usuario sepa que fue la cuota, y no un «no disponible» opaco, es la
-        // diferencia entre esperar cinco minutos y escribir un reporte de fallo.
-        assertEquals(429, error.estadoHttp());
+        // diferencia entre esperar cinco minutos y escribir un reporte de fallo. El tipo
+        // es lo que lo garantiza: su mapeador es el único que devuelve 429.
+        assertTrue(error.getMessage().contains("cuota"), error.getMessage());
         proveedor.verify(2, postRequestedFor(anyUrl()));
     }
 }

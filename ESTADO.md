@@ -6,7 +6,7 @@ Punto de retomada para la próxima sesión.
 
 | Componente | Ruta | Estado |
 |---|---|---|
-| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 164/164 pruebas, verificación en vivo y cadena completa coherente. |
+| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 193/193 pruebas, verificación en vivo y cadena completa coherente. |
 | Frontend Next.js | `frontend-next/` | **Terminado y verificado**: 75/75 pruebas y recorrido completo en el navegador. |
 | Backend Python (FastAPI) | `backend/` | Versión anterior. Funciona, ya es redundante. |
 | Frontend React (Vite) | `frontend/` | Versión anterior. **No sirve contra el backend Quarkus** (ver abajo). |
@@ -121,7 +121,7 @@ configurable sin recompilar.
 | 3.7 | 24 pruebas nuevas con WireMock que **cuentan peticiones al proveedor** |
 | 3.8 | Aislamiento de pruebas por defecto, con guardián que falla si alguna clave resuelve no vacía |
 
-Estado de las suites: **164/164 backend · 75/75 frontend**.
+Estado de las suites: **193/193 backend · 75/75 frontend**.
 
 ### Cinco hallazgos de la fase que conviene no olvidar
 
@@ -161,6 +161,67 @@ fase—. El circuito se cerró solo al recuperarse el proveedor.
 Además, `verificar_en_vivo.py` pasa sus 8 secciones y `verificar_flujo_completo.py`
 confirma que la cadena buscar → priorizar → analizar → proponer → validar sigue siendo
 coherente de extremo a extremo.
+
+## Revisión del PR #2: lo que salió de ahí
+
+Tres comentarios en la solicitud de cambios, y una spec nueva (`SPEC-BE-08`) que llegó a la
+vez. De todo ello salieron cuatro defectos reales que ninguna prueba tenía.
+
+### 1. Las excepciones, una clase por error
+
+`ErroresIA` era una clase con nueve excepciones anidadas y el código HTTP dentro de la base.
+Ahora son `adapter/out/llm/error/` —jerarquía sellada, una clase por error, sin códigos
+HTTP— y `adapter/in/rest/error/` —un `ExceptionMapper` por excepción sobre una base que
+define el proceso de respuesta una sola vez—.
+
+**El defecto que destapó:** con un solo manejador para toda la jerarquía, lo que no heredara
+de ella caía en el 500 sin que nadie se enterara. Pasaba: `domain.shared.PeticionInvalida`
+se movió al dominio en la fase 2 y se quedó sin traducir, así que
+`POST /api/propuestas/generar` sin requisitos ni pliego devolvía **500 Internal Server
+Error** sin `detail` ni identificador. Comprobado contra el servicio real antes de
+arreglarlo.
+
+También desapareció una confusión latente: había **dos** clases `PeticionInvalida` a un
+import de distancia, con códigos distintos. La del adaptador se llama ahora
+`IdentificadorDeModeloInvalido`, que es lo que era.
+
+### 2. Inyección en registros
+
+`domain.shared.Texto.paraRegistro` sanea todo lo que viene de fuera antes de registrarlo:
+el nombre de proveedor de la petición, la respuesta del modelo, el mensaje de PDFBox al
+leer un archivo subido. Un salto de línea en cualquiera de ellos permitía **fabricar una
+línea de auditoría** en un archivo de texto plano.
+
+`InyeccionEnRegistrosTest` no comprueba el saneador —eso verificaría el saneador, no que se
+use— sino **el registro real**, capturándolo con un enganche al `Logger` raíz.
+
+### 3. TOON en el material de entrada
+
+Las tres listas que se le mandan al modelo iban como JSON con sangrado, repitiendo los
+nombres de campo en cada elemento. Ahora van en TOON tabular: la cabecera declara los campos
+y el número de filas una sola vez. **35 % menos de caracteres, medido** (`SPEC-BE-09`).
+
+### 4. Concurrencia (`SPEC-BE-08`)
+
+Ocho de los once hallazgos, aplicados: timeouts monótonos hacia adentro con prueba de
+invariante, cota de conversaciones simultáneas, contrapresión y fin del SSE, mamparo de
+extracción, carrera del limitador, purga programada y presupuesto de hilos declarado.
+
+**Dos resultados que conviene recordar:**
+
+- **BE-K6 no reproduce.** La spec suponía que el identificador de correlación no cruzaba de
+  hilo. Sí cruza: Quarkus lo propaga por el contexto duplicado. Medido —filtro en
+  `vert.x-eventloop-thread-2`, mapeador en `executor-thread-1`, mismo valor— y fijado con
+  `CorrelacionEntreHilosTest`. Se estuvo a un paso de añadir una dependencia para arreglar
+  algo que funcionaba: el contexto **no** se puede leer del `LogRecord`, hay que leerlo al
+  escribir la línea.
+- **Un byte nulo crudo en `LimitadorDeTasa.java`**, commiteado desde el principio. Compilaba
+  y como separador de clave era buena idea; el problema es que git clasificaba el archivo
+  como binario y `git diff` no mostraba nada. Sustituido por el escape textual.
+
+**Pendiente de esa spec:** BE-K1 y BE-K2, la caché de modelos con Caffeine y cierre
+diferido. Se dejan para su propia entrega porque la spec misma lo pide: es el paso de mayor
+riesgo y toca el camino caliente.
 
 ## Frontend Next.js: cerrado
 
