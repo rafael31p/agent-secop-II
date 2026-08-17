@@ -22,7 +22,11 @@ dist-ssr/
 
 # --- Next.js ---
 .next/
-out/
+# Anclado a la raíz del frontend a propósito: un `out/` suelto casa con
+# cualquier directorio llamado así a cualquier profundidad, y este proyecto tiene
+# `application/port/out` y `adapter/out` en el backend. Estuvieron fuera del
+# repositorio sin que nada avisara —compilaban en local— hasta que CI falló.
+/frontend-next/out/
 next-env.d.ts
 coverage/
 *.tsbuildinfo
