@@ -12,15 +12,18 @@ import java.util.List;
 /**
  * Implementa el puerto del modelo sobre el registro de proveedores existente.
  *
- * <p>Es una capa fina y a propósito: toda la lógica valiosa —caché de clientes,
- * reintentos con retroceso, imposición del esquema JSON, traducción de errores— ya vive
- * en {@code ia.ProveedorLangChain4j} y no se toca. Lo único que hace este adaptador es
- * traducir el vocabulario del puerto al de esa implementación.
+ * <p>Es una capa fina y a propósito: la caché de clientes, la imposición del esquema JSON
+ * y la traducción de errores viven en {@code ia.ProveedorLangChain4j}. Lo único que hace
+ * este adaptador es traducir el vocabulario del puerto al de esa implementación.
  *
  * <p>Es también donde se decide qué proveedor atiende la llamada, a partir de lo que
  * traiga la selección. Los casos de uso no saben que existe esa decisión.
+ *
+ * <p>Va calificado con {@link Directo} porque es el fondo de la pila de decoradores: la
+ * resiliencia y las métricas se aplican por composición encima de él, no aquí dentro.
  */
 @ApplicationScoped
+@Directo
 public class ModeloDeLenguajeLangChain4j implements ModeloDeLenguaje {
 
     private final RegistroProveedores registro;

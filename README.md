@@ -157,6 +157,30 @@ positivos con el umbral por defecto.
 | `POST` | `/api/propuestas/validar` | Valida propuesta vs. requisitos |
 | `POST` | `/api/chat` | Chat con el agente experto (streaming SSE) |
 
+### Operación
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/q/health/live` | Vivacidad: ¿hay que reiniciar el proceso? |
+| `GET` | `/q/health/ready` | Disponibilidad: ¿tiene sentido mandarle tráfico? |
+| `GET` | `/q/metrics` | Métricas en formato Prometheus |
+
+`/api/salud` informa de qué hay **configurado**; estas informan de si **funciona**. La
+diferencia no es sutil: el primero devuelve «ok» con la clave del proveedor revocada.
+
+La sonda de disponibilidad usa el estado del cortacircuitos como sensor —consultarlo es
+gratis y refleja las llamadas reales, mientras que sondear al proveedor costaría dinero en
+cada latido— y separa los modelos de la fuente de datos, porque con los modelos caídos aún
+se puede buscar procesos.
+
+> **Al desplegar:** `/q/metrics` revela qué modelos se usan, cuánto falla cada proveedor y
+> cuánto se consume. Restrínjalo por red o por proxy inverso; no se publica junto a la API.
+
+Toda respuesta lleva `X-Correlation-Id`, y todo cuerpo de error lo repite en
+`correlationId`. Si el cliente envía el suyo se conserva, siempre que tenga forma
+admisible: aceptar un valor arbitrario y escribirlo en el registro es inyección de
+registros.
+
 ### Autenticación y límites
 
 Los endpoints que llaman al modelo exigen la cabecera `X-Api-Key`. `/api/salud` y
@@ -188,10 +212,13 @@ auditar quién analizó qué. El día que haga falta lo segundo, el destino es O
 
 ### Manejo de errores del proveedor
 
-Los planes gratuitos devuelven `503` y `429` con frecuencia. El agente reintenta con
-retroceso exponencial y jitter antes de rendirse. Cuando el fallo persiste, el error llega
-al cliente **con su explicación**, no como un `500` genérico
-(`co.agentesecop.api.ManejadorErrores`):
+Los planes gratuitos devuelven `503` y `429` con frecuencia. La política de resiliencia
+—reintentos, timeout, cortacircuitos y mamparo— se **declara** con MicroProfile Fault
+Tolerance y todos sus parámetros son configuración: ver la sección de resiliencia de
+`application.properties`. Cuando el fallo persiste, el error llega al cliente **con su
+explicación**, no como un `500` genérico. Cada excepción tiene su propio
+`ExceptionMapper` en `adapter/in/rest/error/`, sobre una clase base que define el cuerpo y
+el registro una sola vez:
 
 | Situación | HTTP | Qué ve el usuario |
 |---|---|---|
@@ -201,6 +228,9 @@ al cliente **con su explicación**, no como un `500` genérico
 | Servicio caído / modelo inexistente | `404`/`502` | Qué modelo falló y cómo listarlos |
 | Filtro de contenido o respuesta truncada | `422` | Por qué se detuvo la generación |
 | Pliego demasiado grande | `422` | El tamaño admitido y qué hacer |
+| Circuito abierto o tiempo agotado | `503` | Que pruebe otro proveedor del selector |
+| Máximo de trabajos simultáneos | `429` + `Retry-After` | Que reintente en unos segundos, **sin culpar al proveedor** |
+| Falta un dato para poder trabajar | `422` | Qué falta enviar |
 
 **Ningún texto originado en un sistema externo llega al navegador.** El detalle del
 proveedor va al registro junto a un identificador que sí viaja en la respuesta
@@ -214,7 +244,7 @@ incluye la credencial.
 
 ```bash
 cd backend-quarkus
-./mvnw test                    # 102 pruebas, sin red ni credenciales
+./mvnw test                    # 202 pruebas, sin red ni credenciales
 python verificar_en_vivo.py    # extremo a extremo contra el servidor levantado
 ```
 
@@ -228,15 +258,23 @@ npm run build
 
 Todo eso corre en CI en cada empuje, más `gitleaks` sobre el historial completo.
 
-La regla de dependencias de la arquitectura se verifica con ArchUnit, con las
-infracciones actuales congeladas en `src/test/resources/archunit_store`: la deuda está
-registrada y **no puede crecer**, aunque todavía no se haya pagado.
+La regla de dependencias de la arquitectura se verifica con ArchUnit y **sin ninguna
+excepción**: las 482 infracciones que había congeladas se pagaron en la fase 2 y el
+almacén desapareció, así que una violación nueva rompe la compilación en el acto.
+
+Las políticas de resiliencia tienen pruebas que **cuentan peticiones al proveedor**, no
+solo el resultado. La diferencia importa: una prueba que se limita a comprobar que un
+`401` acaba en error pasa igual si se reintentó tres veces —tres llamadas facturables por
+una clave que nunca va a funcionar— que si se abandonó a la primera. Fue lo que reveló
+que LangChain4j reintentaba por su cuenta y multiplicaba la política declarada.
 
 Las pruebas del backend usan **WireMock como librería en la misma JVM** en lugar de
 Testcontainers, porque el entorno de desarrollo no tiene Docker.
 
-`PerfilSinCredenciales` fuerza a que corran sin claves: sin él, el `.env` del
-desarrollador se filtra al perfil de pruebas y estas se comportan distinto en cada
+Las pruebas corren sin claves **por defecto**: `pruebas.AislamientoDePruebas` es una
+fuente de configuración de prioridad superior al `.env` del desarrollador, y
+`AislamientoDePruebasTest` vigila que ninguna clave de proveedor resuelva a un valor no
+vacío. Sin eso, las pruebas hacen llamadas facturables y se comportan distinto en cada
 máquina.
 
 ---

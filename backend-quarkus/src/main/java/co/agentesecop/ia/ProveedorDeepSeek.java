@@ -18,8 +18,9 @@ import java.util.Optional;
 public class ProveedorDeepSeek extends ProveedorOpenAI {
 
     @Inject
-    public ProveedorDeepSeek(ConfiguracionIA config, ObjectMapper jackson) {
-        super(config, jackson);
+    public ProveedorDeepSeek(
+            ConfiguracionIA config, ObjectMapper jackson, CierreDiferido cierreDiferido) {
+        super(config, jackson, cierreDiferido);
     }
 
     @Override

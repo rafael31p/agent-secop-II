@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Estado** | Propuesta |
+| **Estado** | Implementada (fase 3) |
 | **Prioridad** | 🔴 Alta |
 | **Cierra** | BE-C1, BE-C3, BE-A11, BE-B22 (parcial) |
 | **Depende de** | SPEC-BE-01 (los decoradores se aplican sobre puertos) |
@@ -370,3 +370,95 @@ Por eso el paso 4 incluye la verificación explícita y el paso 5 va inmediatame
 - Degradación entre proveedores (si Gemini cae, probar OpenAI automáticamente). Tentador y
   peligroso: cambia el coste y la calidad sin que el usuario lo pida. El `@Fallback` actual
   se lo **sugiere** al usuario y le deja la decisión.
+
+---
+
+## 8. Lo que se aprendió al implementarla
+
+Cinco cosas que la spec no anticipaba. Se dejan escritas porque cuatro de ellas son
+trampas que cualquiera volvería a pisar, y la quinta cambia el diseño propuesto.
+
+### 8.1 Sobrescribir por configuración cambia el número, no la unidad
+
+El diseño proponía `@Retry(delay = 2, delayUnit = SECONDS)` y, en paralelo,
+`…/Retry/delay=2000` en las propiedades. Son incompatibles: la propiedad sustituye el
+valor y **conserva la unidad de la anotación**, así que eso pedía dos mil segundos de
+espera. El arranque falló con «maxDuration should be greater than delay», que fue una
+suerte: el mismo error en `Timeout/value` habría arrancado sin protestar con un timeout
+de treinta y tres horas.
+
+Todas las anotaciones declaran ahora `ChronoUnit.MILLIS` y todas las propiedades van en
+milisegundos. La unidad del código y la de la configuración coinciden por construcción.
+
+### 8.2 El repliegue no se puede emparejar con una firma genérica
+
+`@Fallback(fallbackMethod = …)` sobre `<T> T complete(…, Class<T>)` hace fallar el
+despliegue: «can't find fallback method with matching parameter types and return type».
+No es cuestión del modificador de acceso ni del orden de los parámetros.
+
+La política vive por eso en `PoliticaDeResiliencia`, un bean con la firma borrada
+(`Object`, `Class<?>`), y `ModeloDeLenguajeResiliente` hace el `cast`. La separación tiene
+además una segunda razón que la spec tampoco menciona y que es más importante: **los
+interceptores de CDI no actúan sobre llamadas internas**, así que las anotaciones tenían
+que estar en un bean distinto del que las invoca, no en un método privado del mismo.
+
+### 8.3 LangChain4j ya reintentaba, y los reintentos se multiplicaban
+
+La spec avisaba de esta trampa para la transición —«3 × 3 = 9 llamadas»— pero la situaba
+en `conReintentos`. Estaba también, y sobre todo, **dentro de la biblioteca**: los modelos
+de LangChain4j reintentan tres veces por su cuenta. Con `conReintentos` borrado y dos
+intentos declarados, el proveedor falso recibió **seis** peticiones.
+
+Solo se detectó porque la prueba cuenta peticiones en vez de comprobar el resultado; con
+un `assertThrows` habría pasado en verde. Los cuatro proveedores llevan ahora
+`.maxRetries(0)`: la única política de reintentos es la declarada.
+
+### 8.4 Un cortacircuitos por método, no por proveedor
+
+MicroProfile asocia el cortacircuitos a un método, no a un argumento de la llamada. Con
+cinco proveedores detrás del mismo puerto, el circuito es **uno y agregado**: si Gemini
+cae y abre el circuito, una petición dirigida explícitamente a OpenAI también se replegará
+durante el reposo.
+
+Es una degradación aceptable —el mensaje del repliegue invita a reintentar— pero rebaja lo
+que puede afirmar la sonda de `SPEC-BE-05` §3.1: informa del estado agregado, no de «hay
+al menos un proveedor con circuito cerrado». Tener uno por proveedor exigiría construirlos
+a mano con la API programática, que es justo la complejidad que la decisión 1 evitaba.
+
+### 8.5 La observabilidad también recibe entrada del usuario
+
+`/q/metrics` contra el servicio real mostró `proveedor="inventado"`: el nombre de
+proveedor de la petición llegaba a la etiqueta sin filtrar, y basta un bucle pidiendo
+proveedores al azar para llenar el almacén de métricas de series inútiles. El riesgo
+estaba anotado en `SPEC-BE-05` §6 para el identificador de modelo —que sí se había
+acotado— y no para el campo de al lado. Ambos se resuelven contra el catálogo y lo
+desconocido cae en `otro`.
+
+En la misma línea: la prueba que vigila que no haya claves reales en el perfil de pruebas
+**imprimía la clave entera** en su mensaje de fallo. Es decir, la prueba que existe para
+que no se filtren credenciales las habría publicado en el registro de integración continua
+justo el día que hubiera una que filtrar. Ahora afirma sobre la longitud y nunca sobre el
+valor.
+
+### 8.6 Verificado contra una caída real
+
+Durante la verificación en vivo, Gemini devolvió `503 UNAVAILABLE — high demand` de
+verdad. La política entera se ejercitó sin montar nada: tres reintentos gastados
+(`ft_retry_retries_total`), cuatro fallos contados, circuito abierto, `/q/health/ready` en
+`DOWN` con `cortacircuitos: open`, respuestas inmediatas en vez de tres intentos por
+petición —y `POST /api/procesos/buscar` respondiendo con normalidad durante todo el
+episodio, que es el objetivo central de esta spec—. El circuito se cerró solo al
+recuperarse el proveedor.
+
+---
+
+## 9. Qué queda fuera de esta entrega
+
+- **`@RunOnVirtualThread` en el chat.** El `@Blocking` de la fase 1 ya sacó el trabajo
+  del bucle de eventos, que era el defecto (`BE-C1`). Cambiar a hilos virtuales es una
+  mejora de densidad, no una corrección.
+- **Cancelar la llamada al proveedor cuando el cliente cierra la pestaña** (§3.4). Sigue
+  abierto: LangChain4j no expone un asa para abortar una respuesta en curso, así que
+  reaccionar a la cancelación deja de emitir pero no deja de facturar.
+- **Política declarada sobre `flujo`.** Fault Tolerance no envuelve `Multi`, y reintentar
+  una respuesta ya empezada no tendría sentido.

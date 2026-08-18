@@ -1,6 +1,8 @@
 package co.agentesecop.adapter.in.rest;
 
+import co.agentesecop.adapter.in.rest.error.CuerpoDeError;
 import co.agentesecop.config.ConfiguracionSeguridad;
+import co.agentesecop.domain.shared.Texto;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
@@ -72,9 +74,11 @@ public class FiltroClaveApi implements ContainerRequestFilter {
 
         String cliente = identificar(contexto.getHeaderString(CABECERA));
         if (cliente == null) {
-            LOG.warnf("Petición sin clave válida a %s", ruta);
+            // La ruta la normaliza el contenedor, pero registrarla sin sanear deja el
+            // único punto por el que un valor de la petición entra al registro sin filtro.
+            LOG.warnf("Petición sin clave válida a %s", Texto.paraRegistro(ruta, 120));
             contexto.abortWith(Response.status(401)
-                    .entity(ManejadorErrores.Detalle.de(
+                    .entity(CuerpoDeError.de(
                             "Falta la cabecera X-Api-Key o su valor no es válido."))
                     .build());
             return;
@@ -87,7 +91,7 @@ public class FiltroClaveApi implements ContainerRequestFilter {
                     cliente, operacion.name(), limite);
             contexto.abortWith(Response.status(429)
                     .header("Retry-After", veredicto.segundosParaReintentar())
-                    .entity(ManejadorErrores.Detalle.de(
+                    .entity(CuerpoDeError.de(
                             ("Alcanzaste el límite de %d peticiones por hora para esta "
                                     + "operación. Vuelve a intentarlo en %d minutos.")
                                     .formatted(limite,

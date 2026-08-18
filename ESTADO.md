@@ -1,4 +1,4 @@
-# Estado del proyecto — 17 de agosto de 2026
+# Estado del proyecto — 18 de agosto de 2026
 
 Punto de retomada para la próxima sesión.
 
@@ -6,8 +6,8 @@ Punto de retomada para la próxima sesión.
 
 | Componente | Ruta | Estado |
 |---|---|---|
-| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 88/88 pruebas y verificación en vivo completa. |
-| Frontend Next.js | `frontend-next/` | **Terminado y verificado**: 64/64 pruebas y recorrido completo en el navegador. |
+| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 202/202 pruebas, verificación en vivo y cadena completa coherente. |
+| Frontend Next.js | `frontend-next/` | **Terminado y verificado**: 75/75 pruebas y recorrido completo en el navegador. |
 | Backend Python (FastAPI) | `backend/` | Versión anterior. Funciona, ya es redundante. |
 | Frontend React (Vite) | `frontend/` | Versión anterior. **No sirve contra el backend Quarkus** (ver abajo). |
 
@@ -18,9 +18,9 @@ migración, comparando `frontend/src/types.ts` con los records de `dominio/`.
 
 Ambos backends usan el puerto 8000: solo uno a la vez.
 
-## Fases 0 y 1 del plan de mejora: ejecutadas
+## Fases 0, 1, 2 y 3 del plan de mejora: ejecutadas
 
-El repositorio ya es git, con CI, y las dos fases de mayor valor del
+El repositorio ya es git, con CI y flujo GitFlow, y las cuatro primeras fases del
 [plan](specs/01-PLAN-DE-MEJORA.md) están hechas. Publicado en GitHub bajo GPL-3.0.
 
 **Fase 0 · Red de seguridad**
@@ -48,7 +48,7 @@ El repositorio ya es git, con CI, y las dos fases de mayor valor del
 | 1.9 | Foco visible (`:focus-visible`) y salto al contenido |
 | 1.10 | `aria-live` en el chat y `role="status"` en las operaciones largas |
 
-Estado de las suites: **140/140 backend · 74/74 frontend**.
+Estado de las suites al cerrar esa fase: **140/140 backend · 74/74 frontend**.
 
 Verificado en el navegador tras los cambios: búsqueda, cancelación de una
 priorización sin dejar error, chat en streaming completo, foco visible con
@@ -97,6 +97,158 @@ afirmaba el formato por cable de una enumeración.
 `application/port/out` y `adapter/out` fuera del repositorio sin ninguna señal
 local: compilaban y las pruebas pasaban. Solo lo detectó CI, compilando desde un
 clon limpio.
+
+## Fase 3 · Resiliencia y observabilidad: cerrada
+
+Los ocho puntos, hechos. Lo que cambia de fondo es **dónde vive la política**: ya no es un
+bucle escrito a mano dentro del proveedor, sino un decorador declarado sobre el puerto y
+configurable sin recompilar.
+
+    ModeloDeLenguaje                   ← lo que inyectan los casos de uso
+      ModeloDeLenguajeResiliente         devuelve el tipo pedido
+        PoliticaDeResiliencia            @Retry @Timeout @CircuitBreaker @Bulkhead @Fallback
+          ModeloDeLenguajeMedido         latencia, resultado y consumo estimado
+            ModeloDeLenguajeLangChain4j  la llamada real
+
+| | Qué quedó |
+|---|---|
+| 3.1 | `conReintentos` borrado; MicroProfile Fault Tolerance en su lugar. **Ningún `Thread.sleep` en `src/main/java`** |
+| 3.2 | Decoradores sobre el puerto: resiliencia y métricas se heredan por composición |
+| 3.3 | Presupuesto por caso de uso (validación 240 s, análisis 150 s, propuesta 180 s, priorización 120 s) |
+| 3.4 | `/q/health/live` y `/q/health/ready` con sondas que comprueban, no que recitan |
+| 3.5 | Micrometer en `/q/metrics`: latencia por caso de uso, consumo estimado, y gratis las de Fault Tolerance |
+| 3.6 | `X-Correlation-Id` validado, devuelto en toda respuesta, en el cuerpo del error y en cada línea de registro |
+| 3.7 | 24 pruebas nuevas con WireMock que **cuentan peticiones al proveedor** |
+| 3.8 | Aislamiento de pruebas por defecto, con guardián que falla si alguna clave resuelve no vacía |
+
+Estado de las suites: **202/202 backend · 75/75 frontend**.
+
+### Cinco hallazgos de la fase que conviene no olvidar
+
+**LangChain4j reintenta por su cuenta.** Con `conReintentos` ya borrado y dos intentos
+declarados, el proveedor falso recibió **seis** peticiones: la política se multiplicaba por
+tres. Los cuatro proveedores llevan ahora `.maxRetries(0)`. Solo se detectó porque las
+pruebas cuentan peticiones; un `assertThrows` habría pasado en verde.
+
+**Sobrescribir por configuración cambia el número, no la unidad.** Con
+`delayUnit = SECONDS`, un `Retry/delay=2000` pide dos mil segundos. El arranque falló y por
+eso se vio; el mismo error en `Timeout/value` habría arrancado tan campante con un timeout
+de treinta y tres horas. Todo declara ahora `MILLIS`.
+
+**`@Fallback` no se empareja con una firma genérica**, y los interceptores de CDI no actúan
+sobre llamadas internas. De ahí que la política viva en un bean aparte con la firma borrada
+(`PoliticaDeResiliencia`) y el decorador haga el `cast`.
+
+**Las métricas también reciben entrada del usuario.** `/q/metrics` mostraba
+`proveedor="inventado"`: bastaba un bucle pidiendo proveedores al azar para llenar el
+almacén de series inútiles. El riesgo estaba anotado para el identificador de modelo y no
+para el campo de al lado.
+
+**La prueba que vigila las credenciales las imprimía.** `assertEquals("", clave)` publicaba
+la clave entera del `.env` en su mensaje de fallo, es decir, en el registro de CI, y
+justamente el día en que hubiera una clave real que filtrar. Ahora afirma sobre la
+longitud.
+
+### Verificado contra una caída real de Gemini
+
+Durante la verificación en vivo el proveedor devolvió `503 UNAVAILABLE — high demand` de
+verdad, y la política entera se ejercitó sin montar nada: tres reintentos gastados, cuatro
+fallos contados, circuito abierto, `/q/health/ready` en `DOWN` con `cortacircuitos: open`,
+respuestas inmediatas en vez de tres intentos por petición, y `POST /api/procesos/buscar`
+respondiendo con normalidad durante todo el episodio —que es el objetivo central de la
+fase—. El circuito se cerró solo al recuperarse el proveedor.
+
+Además, `verificar_en_vivo.py` pasa sus 8 secciones y `verificar_flujo_completo.py`
+confirma que la cadena buscar → priorizar → analizar → proponer → validar sigue siendo
+coherente de extremo a extremo.
+
+## Revisión del PR #2: lo que salió de ahí
+
+Tres comentarios en la solicitud de cambios, y una spec nueva (`SPEC-BE-08`) que llegó a la
+vez. De todo ello salieron cuatro defectos reales que ninguna prueba tenía.
+
+### 1. Las excepciones, una clase por error
+
+`ErroresIA` era una clase con nueve excepciones anidadas y el código HTTP dentro de la base.
+Ahora son `adapter/out/llm/error/` —jerarquía sellada, una clase por error, sin códigos
+HTTP— y `adapter/in/rest/error/` —un `ExceptionMapper` por excepción sobre una base que
+define el proceso de respuesta una sola vez—.
+
+**El defecto que destapó:** con un solo manejador para toda la jerarquía, lo que no heredara
+de ella caía en el 500 sin que nadie se enterara. Pasaba: `domain.shared.PeticionInvalida`
+se movió al dominio en la fase 2 y se quedó sin traducir, así que
+`POST /api/propuestas/generar` sin requisitos ni pliego devolvía **500 Internal Server
+Error** sin `detail` ni identificador. Comprobado contra el servicio real antes de
+arreglarlo.
+
+También desapareció una confusión latente: había **dos** clases `PeticionInvalida` a un
+import de distancia, con códigos distintos. La del adaptador se llama ahora
+`IdentificadorDeModeloInvalido`, que es lo que era.
+
+### 2. Inyección en registros
+
+`domain.shared.Texto.paraRegistro` sanea todo lo que viene de fuera antes de registrarlo:
+el nombre de proveedor de la petición, la respuesta del modelo, el mensaje de PDFBox al
+leer un archivo subido. Un salto de línea en cualquiera de ellos permitía **fabricar una
+línea de auditoría** en un archivo de texto plano.
+
+`InyeccionEnRegistrosTest` no comprueba el saneador —eso verificaría el saneador, no que se
+use— sino **el registro real**, capturándolo con un enganche al `Logger` raíz.
+
+### 3. TOON en el material de entrada
+
+Las tres listas que se le mandan al modelo iban como JSON con sangrado, repitiendo los
+nombres de campo en cada elemento. Ahora van en TOON tabular: la cabecera declara los campos
+y el número de filas una sola vez. **35 % menos de caracteres, medido** (`SPEC-BE-09`).
+
+### 4. Concurrencia (`SPEC-BE-08`)
+
+Ocho de los once hallazgos, aplicados: timeouts monótonos hacia adentro con prueba de
+invariante, cota de conversaciones simultáneas, contrapresión y fin del SSE, mamparo de
+extracción, carrera del limitador, purga programada y presupuesto de hilos declarado.
+
+**Dos resultados que conviene recordar:**
+
+- **BE-K6 no reproduce.** La spec suponía que el identificador de correlación no cruzaba de
+  hilo. Sí cruza: Quarkus lo propaga por el contexto duplicado. Medido —filtro en
+  `vert.x-eventloop-thread-2`, mapeador en `executor-thread-1`, mismo valor— y fijado con
+  `CorrelacionEntreHilosTest`. Se estuvo a un paso de añadir una dependencia para arreglar
+  algo que funcionaba: el contexto **no** se puede leer del `LogRecord`, hay que leerlo al
+  escribir la línea.
+- **Un byte nulo crudo en `LimitadorDeTasa.java`**, commiteado desde el principio. Compilaba
+  y como separador de clave era buena idea; el problema es que git clasificaba el archivo
+  como binario y `git diff` no mostraba nada. Sustituido por el escape textual.
+
+### 5. La caché de modelos (BE-K1 y BE-K2)
+
+Entregada aparte, como pedía la spec por ser el paso de mayor riesgo.
+`Collections.synchronizedMap` ejecutaba la construcción del cliente —DNS, TLS, pool— dentro
+del monitor, así que **construir un modelo detenía a todos los hilos de ese proveedor**,
+incluso a los que pedían uno ya cacheado. Y la expulsión cerraba clientes que otros hilos
+podían estar usando en mitad de una llamada de dos minutos.
+
+Ahora es Caffeine —bloqueo por clave— más `CierreDiferido`, que espera tres minutos antes
+de cerrar lo expulsado. Se descartó contar referencias: es exacto y es mucho más código
+para acotar lo mismo.
+
+Dos cosas que cambian con Caffeine y conviene no olvidar: **no es LRU estricto** (usa
+W-TinyLFU y puede rechazar la entrada nueva), y **la expulsión es amortizada**. La primera
+versión de la prueba pasaba por el motivo equivocado justamente por lo primero.
+
+### 6. Y una calibración que solo salió midiendo
+
+Con todo lo demás arreglado, la verificación en vivo dejó el cortacircuitos **abierto
+mientras todas las llamadas funcionaban**: `maxRetriesReached` en cero —ninguna petición se
+rindió— y aun así 6 fallos contados de 13. La causa es el orden que fija MicroProfile:
+`Retry` envuelve a `CircuitBreaker`, así que **el circuito cuenta intentos, no llamadas**, y
+el plan gratuito de Gemini falla el 40 % de los intentos en horas punta.
+
+Abrir el circuito ahí es peor que no tenerlo: retira treinta segundos un servicio que los
+reintentos estaban rescatando. Recalibrado a 20 de ventana y 0,8 de proporción, con el
+número delante. Es para lo que servían las métricas.
+
+**Pendiente:** con anotaciones no hay forma de que el circuito cuente llamadas en vez de
+intentos. Si algún día importa, la salida es la API programática de SmallRye.
 
 ## Frontend Next.js: cerrado
 
@@ -173,13 +325,11 @@ python verificar_en_vivo.py                    # en otra terminal
 
 Lo que sigue del plan, en orden:
 
-1. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Ya se puede: los
-   decoradores se aplican sobre los puertos, que ahora existen.
-2. **Fase 3 · Resiliencia y observabilidad** (5-8 jornadas). Va después de la 2 a
-   propósito: los decoradores se aplican sobre puertos que aún no existen.
-3. **Fase 4 · Frontend** (6-10 jornadas). Incluye `useAsyncAction`, que absorbe la
+1. **Fase 4 · Frontend** (6-10 jornadas). Incluye `useAsyncAction`, que absorbe la
    cancelación que la fase 1 dejó a medio camino, y persistir búsqueda y validación.
-4. **Fase 5 · Documentación y diagramas**, y **Fase 6 · Migración a inglés**.
+   Conviene añadirle leer y mostrar el `correlationId` del error, que el backend ya
+   devuelve y el frontend todavía ignora.
+2. **Fase 5 · Documentación y diagramas**, y **Fase 6 · Migración a inglés**.
 
 Y un asunto que el plan marca como **bloqueante y no técnico**: `SPEC-NT-02` (qué datos
 salen hacia terceros, con qué base y con qué aviso). Hasta que esté decidido y comunicado,
@@ -196,3 +346,13 @@ la herramienta no debería usarse con un pliego real de un cliente real.
   solo proceso es exacto; escalar horizontalmente exigiría un almacén compartido.
 - **`ia/`, `secop/` y `config/` siguen fuera del árbol `adapter/`.** Son
   adaptadores de hecho y las reglas los tratan como tales; falta recolocarlos.
+- **El cortacircuitos del modelo es uno y agregado, no uno por proveedor.**
+  MicroProfile lo asocia a un método, no a un argumento: si Gemini abre el circuito,
+  una petición dirigida a OpenAI también se repliega durante el reposo. Tenerlos
+  separados exigiría construirlos con la API programática y renunciar a declararlos.
+- **Cerrar la pestaña no detiene la llamada al modelo.** LangChain4j no expone un asa
+  para abortar una respuesta en curso, así que se siguen facturando tokens que nadie
+  leerá.
+- **Sin OpenTelemetry ni registro JSON.** Ambos estaban en SPEC-BE-05 y se dejan para
+  cuando exista un colector que los consuma; encenderlos hoy sería complejidad sin
+  destinatario.

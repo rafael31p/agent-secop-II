@@ -21,8 +21,9 @@ import java.util.List;
 public class ProveedorOpenAI extends ProveedorLangChain4j {
 
     @Inject
-    public ProveedorOpenAI(ConfiguracionIA config, ObjectMapper jackson) {
-        super(config, jackson);
+    public ProveedorOpenAI(
+            ConfiguracionIA config, ObjectMapper jackson, CierreDiferido cierreDiferido) {
+        super(config, jackson, cierreDiferido);
     }
 
     @Override
@@ -73,6 +74,13 @@ public class ProveedorOpenAI extends ProveedorLangChain4j {
     @Override
     protected ChatModel construirModelo(String nombreModelo) {
         var constructor = OpenAiChatModel.builder()
+                // Sin reintento propio del cliente, a propósito: la política la declara
+                // `adapter.out.llm.PoliticaDeResiliencia` y tenerla también aquí las
+                // MULTIPLICA en vez de sumarlas. Se descubrió contando peticiones contra
+                // un proveedor falso: dos intentos declarados daban seis llamadas, porque
+                // LangChain4j reintenta tres veces por su cuenta. Es la misma trampa que
+                // avisaba SPEC-BE-02 para la transición, escondida en la biblioteca.
+                .maxRetries(0)
                 .apiKey(claveApi().orElseThrow())
                 .modelName(nombreModelo)
                 .temperature(config.temperatura())

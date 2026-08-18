@@ -1,6 +1,9 @@
 package co.agentesecop.ia;
 
+import co.agentesecop.adapter.out.llm.error.ProveedorDesconocido;
+import co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado;
 import co.agentesecop.config.ConfiguracionIA;
+import co.agentesecop.domain.shared.Texto;
 import co.agentesecop.adapter.in.rest.dto.ProveedorDisponible;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
@@ -33,8 +36,8 @@ public class RegistroProveedores {
     /**
      * Devuelve el proveedor pedido, o el predeterminado si no se pide ninguno.
      *
-     * @throws ErroresIA.ProveedorDesconocido si el nombre no corresponde a ninguno
-     * @throws ErroresIA.ProveedorNoConfigurado si le faltan credenciales
+     * @throws ProveedorDesconocido si el nombre no corresponde a ninguno
+     * @throws ProveedorNoConfigurado si le faltan credenciales
      */
     public ProveedorIA resolver(String solicitado) {
         String nombre = (solicitado == null || solicitado.isBlank())
@@ -43,12 +46,16 @@ public class RegistroProveedores {
 
         ProveedorIA proveedor = porNombre.get(nombre);
         if (proveedor == null) {
-            throw new ErroresIA.ProveedorDesconocido(
+            // El nombre viene del cuerpo de la petición y se devuelve en el mensaje:
+            // se acota y se limpia para que no pueda plantar líneas en el registro ni
+            // volcar diez mil caracteres en la respuesta.
+            throw new ProveedorDesconocido(
                     "Proveedor '%s' desconocido. Disponibles: %s."
-                            .formatted(nombre, String.join(", ", porNombre.keySet())));
+                            .formatted(Texto.paraRegistro(nombre, 40),
+                                    String.join(", ", porNombre.keySet())));
         }
         if (!proveedor.configurado()) {
-            throw new ErroresIA.ProveedorNoConfigurado(proveedor.motivoNoDisponible());
+            throw new ProveedorNoConfigurado(proveedor.motivoNoDisponible());
         }
         return proveedor;
     }

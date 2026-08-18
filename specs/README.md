@@ -43,6 +43,8 @@ implementar.
 | [SPEC-BE-05](backend/SPEC-BE-05-observabilidad.md) | Salud, métricas, trazas y correlación | 🟠 Media |
 | [SPEC-BE-06](backend/SPEC-BE-06-seguridad-y-limites.md) | Autenticación, límites de consumo y fuga de datos | 🔴 Alta |
 | [SPEC-BE-07](backend/SPEC-BE-07-idioma-y-nomenclatura.md) | Migración del código a inglés | 🟡 Baja |
+| [SPEC-BE-08](backend/SPEC-BE-08-concurrencia.md) | Concurrencia: hilos, contención y ciclo de vida de recursos compartidos | 🔴 Alta |
+| [SPEC-BE-09](backend/SPEC-BE-09-formato-de-entrada-toon.md) | Formato del material que se le envía al modelo (TOON) | 🟠 Media |
 
 ### Especificaciones técnicas — frontend
 

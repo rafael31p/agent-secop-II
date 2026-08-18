@@ -1,6 +1,7 @@
 package co.agentesecop.adapter.out.document;
 
 import co.agentesecop.domain.model.procurement.TextoDeDocumento;
+import co.agentesecop.domain.shared.Texto;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -99,13 +100,20 @@ public class ExtractorDocumentos {
                 try {
                     acumulado.append(extractor.getText(documento));
                 } catch (IOException e) {
-                    LOG.warnf("No se pudo extraer la página %d: %s", pagina, e.getMessage());
+                    // El mensaje lo produce PDFBox al leer un archivo que subió el usuario,
+                    // así que su contenido depende del archivo: se sanea antes de registrarlo.
+                    LOG.warnf("No se pudo extraer la página %d: %s",
+                            pagina, Texto.paraRegistro(e.getMessage(), 120));
                 }
             }
             return new TextoPdf(acumulado.toString(), paginas);
         } catch (IOException e) {
+            // Aquí sí viaja el mensaje de la biblioteca al usuario, y es la excepción
+            // consciente a la regla de no publicar texto ajeno: el archivo es suyo, y
+            // «documento cifrado» es justo lo que le dice qué hacer. Se acota y se sanea
+            // para que no pueda ser ni un vector de inyección ni un volcado enorme.
             throw new DocumentoNoSoportado(
-                    "No se pudo leer el PDF: " + e.getMessage()
+                    "No se pudo leer el PDF: " + Texto.paraRegistro(e.getMessage(), 120)
                             + ". Si está protegido con contraseña, quítala antes de subirlo.",
                     e);
         }

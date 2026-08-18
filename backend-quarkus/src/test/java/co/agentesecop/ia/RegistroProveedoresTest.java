@@ -67,25 +67,40 @@ class RegistroProveedoresTest {
     }
 
     @Test
-    @DisplayName("Un proveedor desconocido da 400 y lista los válidos")
+    @DisplayName("Un proveedor desconocido se distingue por tipo y lista los válidos")
     void proveedorDesconocido() {
+        // El tipo es la afirmación; el 400 lo pone su mapeador, que es quien sabe de HTTP.
         var error = assertThrows(
-                ErroresIA.ProveedorDesconocido.class,
+                co.agentesecop.adapter.out.llm.error.ProveedorDesconocido.class,
                 () -> registro.resolver("proveedor-inventado"));
 
-        assertEquals(400, error.estadoHttp());
         assertTrue(error.getMessage().contains("gemini"),
                 "Debe listar los disponibles: " + error.getMessage());
     }
 
     @Test
-    @DisplayName("Un proveedor sin configurar da 503, no un fallo genérico")
+    @DisplayName("Un proveedor sin configurar tiene su propio tipo, no un fallo genérico")
     void proveedorNoConfigurado() {
         var error = assertThrows(
-                ErroresIA.ProveedorNoConfigurado.class,
+                co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado.class,
                 () -> registro.resolver("gemini"));
 
-        assertEquals(503, error.estadoHttp());
+        assertTrue(error.getMessage().contains("GEMINI_API_KEY"),
+                "El motivo debe decir qué falta: " + error.getMessage());
+    }
+
+    @Test
+    @DisplayName("Un nombre de proveedor con salto de línea no llega al mensaje")
+    void noSePuedeInyectarPorElNombreDelProveedor() {
+        // El nombre viene del cuerpo de la petición y acaba en el registro y en la
+        // respuesta. Un salto de línea sin filtrar permite fabricar una entrada de
+        // auditoría entera en un archivo de texto plano.
+        var error = assertThrows(
+                co.agentesecop.adapter.out.llm.error.ProveedorDesconocido.class,
+                () -> registro.resolver("gemini\n2026-01-01 INFO Sesion de administrador"));
+
+        assertFalse(error.getMessage().contains("\n"),
+                "El mensaje arrastra el salto de línea: " + error.getMessage());
     }
 
     @Test
@@ -94,10 +109,10 @@ class RegistroProveedoresTest {
         // Falla por falta de credenciales, no por proveedor desconocido: prueba que
         // resolvió el predeterminado en vez de rechazar la petición.
         assertThrows(
-                ErroresIA.ProveedorNoConfigurado.class,
+                co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado.class,
                 () -> registro.resolver(null));
         assertThrows(
-                ErroresIA.ProveedorNoConfigurado.class,
+                co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado.class,
                 () -> registro.resolver("   "));
     }
 
@@ -105,7 +120,7 @@ class RegistroProveedoresTest {
     @DisplayName("El nombre del proveedor no distingue mayúsculas")
     void nombreInsensibleAMayusculas() {
         assertThrows(
-                ErroresIA.ProveedorNoConfigurado.class,
+                co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado.class,
                 () -> registro.resolver("GEMINI"));
     }
 

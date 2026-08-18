@@ -12,6 +12,11 @@ import java.util.Map;
  * claves configuradas las pruebas se comportaban distinto que en integración continua.
  * Los valores de un perfil de prueba se aplican como propiedades de sistema, que sí
  * ganan al {@code .env}.
+ *
+ * <p><b>Ya no es obligatorio recordarlo.</b> {@code pruebas.AislamientoDePruebas} hace lo
+ * mismo por defecto para todas las clases, y {@code AislamientoDePruebasTest} vigila que
+ * siga siendo cierto. Este perfil se conserva porque además fija el proveedor por defecto
+ * y porque declarar la intención en la clase sigue siendo más legible que deducirla.
  */
 public class PerfilSinCredenciales implements QuarkusTestProfile {
 
@@ -23,7 +28,6 @@ public class PerfilSinCredenciales implements QuarkusTestProfile {
                 "agente.ia.anthropic.api-key", "",
                 "agente.ia.deepseek.api-key", "",
                 "agente.ia.ollama.habilitado", "false",
-                "agente.ia.proveedor-por-defecto", "gemini",
-                "agente.ia.intentos-maximos", "1");
+                "agente.ia.proveedor-por-defecto", "gemini");
     }
 }

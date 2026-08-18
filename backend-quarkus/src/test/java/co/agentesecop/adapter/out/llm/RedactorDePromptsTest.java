@@ -98,7 +98,11 @@ class RedactorDePromptsTest {
         String contenido = redactor.procesosAClasificar(new ComandoDePriorizacion(
                 List.of(proceso), null, 15, SeleccionDeModelo.porDefecto()));
 
-        assertTrue(contenido.contains("\"objeto\" : \"Portal\""), contenido);
+        // La lista va como tabla TOON: los campos se declaran una vez en la cabecera y
+        // cada proceso es una fila. Antes iba como JSON con sangrado, repitiendo los diez
+        // nombres de campo en cada elemento.
+        assertTrue(contenido.contains("procesos[1]{id,entidad,objeto,"), contenido);
+        assertTrue(contenido.contains("Portal"), contenido);
         // Lo que no aporta a la decisión no se manda: son tokens que se pagan.
         assertFalse(contenido.contains("secop.example"),
                 "La URL no ayuda a clasificar y ocupa contexto:\n" + contenido);
