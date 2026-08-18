@@ -67,7 +67,7 @@ class ProveedorLangChain4jTest {
     /** Doble mínimo: solo necesita heredar la traducción, no hablar con ningún servicio. */
     private static final class ProveedorDePrueba extends ProveedorLangChain4j {
         ProveedorDePrueba() {
-            super(null, null);
+            super(null, null, new CierreDiferido(java.time.Duration.ofMinutes(3)));
         }
 
         @Override

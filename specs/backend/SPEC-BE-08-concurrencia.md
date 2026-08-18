@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Estado** | Implementada en parte (ver §8) |
+| **Estado** | Implementada (ver §8) |
 | **Prioridad** | 🔴 Alta |
 | **Cierra** | BE-K1 … BE-K10 (hallazgos nuevos, ver §1) |
 | **Depende de** | SPEC-BE-02 (implementada), SPEC-BE-03, SPEC-BE-05 |
@@ -668,7 +668,7 @@ riesgo se deja aislado, como pedía el §4 de esta misma spec.
 | BE-K10 · `limpiarVencidos()` huérfano | ✅ `PurgaDelLimitador`, cada 30 min con `SKIP` |
 | BE-K11 · Presupuesto de hilos | ✅ 120 hilos, 200 en cola, declarado con su cuenta |
 | BE-K6 · Correlación entre hilos | ⚠️ **No reproduce.** Ver §8.1 |
-| BE-K1, BE-K2 · Caché de modelos | ⏳ Pendiente. Ver §8.2 |
+| BE-K1, BE-K2 · Caché de modelos | ✅ Caffeine + cierre diferido. Ver §8.2 |
 
 ### 8.1 BE-K6 no reproduce: el contexto sí cruza
 
@@ -699,15 +699,47 @@ Lo que **sí** queda abierto de este hallazgo es el punto 3: en SSE, los callbac
 LangChain4j corren en hilos de su propio cliente HTTP, fuera del alcance de cualquier
 propagación. Ahí el identificador tendría que pasarse como parámetro.
 
-### 8.2 BE-K1 y BE-K2 quedan para su propia entrega
+### 8.2 BE-K1 y BE-K2: caché con Caffeine y cierre diferido
 
-Por la razón que da el §4 de esta spec: es el paso de mayor riesgo, toca el camino caliente
-y merece aislarse. Añadir Caffeine y el cierre diferido en la misma entrega que otros ocho
-cambios habría hecho imposible atribuir una regresión.
+Entregados aparte de los otros ocho, como pedía el §4.
 
-Sigue siendo la deuda más seria de las que quedan: `Collections.synchronizedMap` ejecuta la
-función de `computeIfAbsent` dentro del monitor, así que construir un modelo —DNS, TLS,
-pool— serializa a todos los hilos de ese proveedor.
+`CacheDeModelos` sustituye al `Collections.synchronizedMap` sobre un `LinkedHashMap` LRU.
+Caffeine bloquea **por clave**: quien pide un modelo ya cacheado no espera a nadie, y quien
+pide el mismo que se está construyendo espera a ese y solo a ese.
+
+`CierreDiferido` cierra el cliente expulsado tras un plazo de gracia (`PT3M` por defecto,
+configurable) en vez de cerrarlo en el acto. Expulsar de una caché no es dejar de usar: la
+referencia que la caché ya entregó puede estar en mitad de una llamada de hasta dos
+minutos.
+
+Se descartó el contador de referencias por lo que ya decía esta spec: es exacto y es mucho
+más código —incrementar al entregar, decrementar en todos los caminos de salida, incluidas
+las excepciones— para acotar un problema que un plazo de gracia acota igual de bien. El
+coste de equivocarse por exceso son unos clientes ociosos de más; el de equivocarse por
+defecto es abortar llamadas que el usuario está esperando.
+
+**Los criterios 3 y 4 tienen su prueba**, en `CacheDeModelosTest`:
+
+| Criterio | Prueba |
+|---|---|
+| 4 · se construye una sola vez | 50 hilos sobre el mismo nombre → una construcción, una instancia |
+| 4 · nadie espera por otro modelo | un constructor bloqueado no impide obtener otro nombre |
+| 3 · ninguna llamada en vuelo se aborta | 20 hilos con modelos distintos sobre una caché de 4: ninguno se cierra mientras se usa |
+
+Hay además una prueba que **ejecuta el diseño retirado** y comprueba que sí serializaba. Un
+comentario que dice «esto bloqueaba» se puede discutir; una prueba que lo demuestra, no.
+
+#### Dos cosas que cambian y conviene saber
+
+**Caffeine no es LRU estricto.** Usa W-TinyLFU, que también puede *rechazar la entrada
+nueva* si estima que la que ya está vale más. Para este uso da igual, pero da para escribir
+pruebas que pasan por el motivo equivocado: la primera versión de la prueba de expulsión
+metía tres modelos en una caché de dos y comprobaba que el primero siguiera abierto —y
+pasaba porque nunca lo expulsaron—. Las afirmaciones no deben depender de qué entrada cae.
+
+**La expulsión es amortizada.** Caffeine hace el mantenimiento en la siguiente operación,
+no en la escritura que lo provoca. Con tráfico real llega solo; en una prueba hay que
+forzarlo, o se mide el retraso del mantenimiento en vez de lo que se quería medir.
 
 ### 8.3 Un hallazgo que esta spec no tenía
 
@@ -718,3 +750,41 @@ dentro de un archivo hace que git lo clasifique como **binario**, así que `git 
 muestra nada y el archivo no se puede revisar en una solicitud de cambios. Estaba
 commiteado desde el principio. Sustituido por el escape `'\0'`, misma semántica y archivo
 legible.
+
+
+---
+
+## 9. Un hallazgo de calibración que solo salió midiendo
+
+Con la caché ya arreglada, la verificación en vivo contra Gemini real dejó el cortacircuitos
+**abierto mientras todas las llamadas funcionaban**. Los contadores:
+
+```
+ft_retry_calls_total{retryResult="maxRetriesReached"}          0      ← ninguna llamada se rindió
+ft_retry_calls_total{retried="true",retryResult="valueReturned"}  3   ← tres se salvaron reintentando
+ft_circuitbreaker_calls_total{circuitBreakerResult="failure"}  6
+ft_circuitbreaker_calls_total{circuitBreakerResult="success"}  7
+ft_circuitbreaker_opened_total                                 1
+```
+
+Cero llamadas agotaron sus reintentos: **desde el punto de vista del usuario, el servicio
+funcionó al cien por cien**. Y aun así el circuito se abrió y retiró el servicio treinta
+segundos.
+
+La causa está en el orden que fija MicroProfile, que no se puede cambiar con anotaciones:
+`Retry` envuelve a `CircuitBreaker`, así que **el circuito cuenta intentos, no llamadas**.
+Un proveedor que falla el 40 % de los intentos y responde bien al reintentar —el plan
+gratuito de Gemini en horas punta— roza de continuo un umbral del 50 %.
+
+Abrir el circuito ahí es peor que no tenerlo: retira un servicio que los reintentos estaban
+rescatando con éxito. Recalibrado a **20 intentos de ventana y 0,8 de proporción**: hacen
+falta 16 fallos de 20, cosa que con una tasa base del 50 % ocurre por azar menos del 1 % de
+las veces. El circuito vuelve a significar «el proveedor está caído» y no «el proveedor va
+regular».
+
+Es exactamente para lo que `SPEC-BE-05` pedía las métricas. La primera calibración fue una
+intuición razonable y estaba mal; la segunda tiene un número detrás.
+
+**Queda una limitación declarada:** con anotaciones no hay forma de que el circuito cuente
+llamadas en vez de intentos. Si algún día importa, la salida es la API programática de
+SmallRye (`Guard`), y entonces habrá que sopesar si vale renunciar a la política declarada.

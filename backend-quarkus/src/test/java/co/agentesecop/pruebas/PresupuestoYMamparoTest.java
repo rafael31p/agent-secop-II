@@ -6,7 +6,9 @@ import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -237,6 +239,44 @@ class PresupuestoYMamparoTest {
         assertFalse(detalle.contains("otro proveedor"),
                 "Sugerir cambiar de proveedor no puede ayudar: el mamparo es el mismo. "
                         + detalle);
+
+        ocupante.interrupt();
+    }
+
+    /**
+     * La sonda que decide si hay que reiniciar el proceso no puede quedarse esperando.
+     *
+     * <p>Es el defecto original en su forma más aguda: con el pool de trabajo lleno de
+     * análisis retenidos, no respondía <b>nada</b> —incluida {@code /q/health/ready}, que
+     * es justo lo que un orquestador consulta para decidir si el servicio sigue vivo—. Un
+     * orquestador que no obtiene respuesta concluye que el proceso está muerto y lo
+     * reinicia, tirando de paso las peticiones que sí iban bien.
+     */
+    @Test
+    @DisplayName("Con el mamparo lleno, la sonda de disponibilidad sigue respondiendo rápido")
+    void laSondaRespondeAunqueElMamparoEsteLleno() throws InterruptedException {
+        proveedorQueNoResponde();
+
+        CountDownLatch enVuelo = new CountDownLatch(1);
+        Thread ocupante = new Thread(() -> {
+            enVuelo.countDown();
+            try {
+                analizarDirecto();
+            } catch (RuntimeException esperado) {
+                // Su papel es ocupar el permiso mientras se mide la sonda.
+            }
+        }, "ocupante-del-mamparo");
+        ocupante.setDaemon(true);
+        ocupante.start();
+        assertTrue(enVuelo.await(5, TimeUnit.SECONDS), "El ocupante no arrancó");
+        Thread.sleep(500);
+
+        long inicio = System.nanoTime();
+        given().when().get("/q/health/ready").then().statusCode(anyOf(is(200), is(503)));
+        long tardanza = (System.nanoTime() - inicio) / 1_000_000;
+
+        assertTrue(tardanza < 1_000,
+                "La sonda tardó %d ms con una llamada al modelo retenida".formatted(tardanza));
 
         ocupante.interrupt();
     }

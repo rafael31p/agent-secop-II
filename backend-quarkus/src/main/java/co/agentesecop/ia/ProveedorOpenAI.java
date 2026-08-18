@@ -21,8 +21,9 @@ import java.util.List;
 public class ProveedorOpenAI extends ProveedorLangChain4j {
 
     @Inject
-    public ProveedorOpenAI(ConfiguracionIA config, ObjectMapper jackson) {
-        super(config, jackson);
+    public ProveedorOpenAI(
+            ConfiguracionIA config, ObjectMapper jackson, CierreDiferido cierreDiferido) {
+        super(config, jackson, cierreDiferido);
     }
 
     @Override

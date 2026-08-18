@@ -27,8 +27,6 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.service.output.JsonSchemas;
 import io.smallrye.mutiny.Multi;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,9 +37,8 @@ import org.jboss.logging.Logger;
 /**
  * Base común de los proveedores implementados sobre LangChain4j.
  *
- * <p>Concentra lo que no depende del proveedor: caché de modelos, reintentos con
- * retroceso exponencial, imposición del esquema JSON y traducción de errores. Cada
- * subclase solo construye su modelo.
+ * <p>Concentra lo que no depende del proveedor: caché de modelos, imposición del esquema
+ * JSON y traducción de errores. Cada subclase solo construye su modelo.
  */
 public abstract class ProveedorLangChain4j implements ProveedorIA {
 
@@ -52,16 +49,6 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
 
     protected final ConfiguracionIA config;
     private final ObjectMapper jackson;
-
-    /**
-     * Tope de modelos vivos por proveedor.
-     *
-     * <p>Dieciséis es holgado para el uso real —un operador alterna entre dos o tres
-     * modelos— y acotado frente al abuso. La caché se indexa por un nombre que viene de
-     * la petición: sin tope, pedir mil modelos distintos deja mil clientes HTTP abiertos
-     * en memoria hasta que la JVM se queda sin ella.
-     */
-    private static final int MAXIMO_MODELOS_CACHEADOS = 16;
 
     /**
      * Cuánto puede acumularse sin que el cliente lea.
@@ -77,44 +64,19 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
             Pattern.compile("[a-zA-Z0-9._:\\-]{1,80}");
 
     /**
-     * Construir un modelo abre un cliente HTTP; se cachean por nombre de modelo para no
-     * repetirlo en cada petición.
-     *
-     * <p>Con expulsión del menos usado recientemente, y cierre del cliente al expulsarlo
-     * cuando el proveedor lo permite.
+     * Construir un modelo abre un cliente HTTP; se cachean por nombre para no repetirlo en
+     * cada petición. Ver {@link CacheDeModelos}, que es donde vive todo lo delicado: el
+     * tope, la expulsión y —sobre todo— que construir uno no detenga a los demás.
      */
-    private final Map<String, ChatModel> modelosCacheados = cacheAcotada();
-    private final Map<String, StreamingChatModel> modelosFlujoCacheados = cacheAcotada();
+    private final CacheDeModelos<ChatModel> modelosCacheados;
+    private final CacheDeModelos<StreamingChatModel> modelosFlujoCacheados;
 
-    private static <V> Map<String, V> cacheAcotada() {
-        // `accessOrder = true` convierte el LinkedHashMap en LRU: la entrada más antigua
-        // pasa a ser la menos usada recientemente, no la insertada antes.
-        return Collections.synchronizedMap(new LinkedHashMap<String, V>(16, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<String, V> masAntigua) {
-                if (size() <= MAXIMO_MODELOS_CACHEADOS) {
-                    return false;
-                }
-                cerrarSiProcede(masAntigua.getValue());
-                return true;
-            }
-        });
-    }
-
-    /** Algunos clientes mantienen un pool de conexiones; expulsarlos sin cerrar lo filtra. */
-    private static void cerrarSiProcede(Object modelo) {
-        if (modelo instanceof AutoCloseable cerrable) {
-            try {
-                cerrable.close();
-            } catch (Exception e) {
-                LOG.debug("No se pudo cerrar el modelo expulsado de la caché.", e);
-            }
-        }
-    }
-
-    protected ProveedorLangChain4j(ConfiguracionIA config, ObjectMapper jackson) {
+    protected ProveedorLangChain4j(
+            ConfiguracionIA config, ObjectMapper jackson, CierreDiferido cierreDiferido) {
         this.config = config;
         this.jackson = jackson;
+        this.modelosCacheados = new CacheDeModelos<>(cierreDiferido);
+        this.modelosFlujoCacheados = new CacheDeModelos<>(cierreDiferido);
     }
 
     /** Construye el modelo síncrono del proveedor concreto. */
@@ -174,8 +136,7 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
         exigirTamanoRazonable(peticion);
 
         String nombreModelo = resolverModelo(peticion.modelo());
-        ChatModel modelo =
-                modelosCacheados.computeIfAbsent(nombreModelo, this::construirModelo);
+        ChatModel modelo = modelosCacheados.obtener(nombreModelo, this::construirModelo);
 
         ChatRequest solicitud = ChatRequest.builder()
                 .messages(mensajes(peticion))
@@ -265,7 +226,7 @@ public abstract class ProveedorLangChain4j implements ProveedorIA {
 
         String nombreModelo = resolverModelo(peticion.modelo());
         StreamingChatModel modelo =
-                modelosFlujoCacheados.computeIfAbsent(nombreModelo, this::construirModeloFlujo);
+                modelosFlujoCacheados.obtener(nombreModelo, this::construirModeloFlujo);
 
         ChatRequest solicitud = ChatRequest.builder().messages(mensajes(peticion)).build();
 

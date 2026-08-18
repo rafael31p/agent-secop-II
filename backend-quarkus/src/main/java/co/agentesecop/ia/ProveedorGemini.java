@@ -16,8 +16,9 @@ import java.util.List;
 public class ProveedorGemini extends ProveedorLangChain4j {
 
     @Inject
-    public ProveedorGemini(ConfiguracionIA config, ObjectMapper jackson) {
-        super(config, jackson);
+    public ProveedorGemini(
+            ConfiguracionIA config, ObjectMapper jackson, CierreDiferido cierreDiferido) {
+        super(config, jackson, cierreDiferido);
     }
 
     @Override

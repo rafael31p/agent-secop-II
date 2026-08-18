@@ -2,6 +2,7 @@ package co.agentesecop.config;
 
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
+import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -41,6 +42,25 @@ public interface ConfiguracionIA {
      */
     @WithDefault("300")
     int timeoutSegundos();
+
+    /**
+     * Cuánto se espera antes de cerrar un cliente expulsado de la caché de modelos.
+     *
+     * <p>Por encima del {@code @Timeout} por intento, con margen: expulsar de una caché no
+     * es lo mismo que dejar de usar, y la referencia que la caché ya entregó puede estar en
+     * mitad de una llamada. Ver {@code ia.CierreDiferido}.
+     */
+    @WithDefault("PT3M")
+    Duration graciaDeCierre();
+
+    /**
+     * Cuántas conversaciones de chat pueden estar abiertas a la vez.
+     *
+     * <p>Ocho es mucho para el uso previsto. Se calibra con la métrica
+     * {@code llm.conversaciones.disponibles}, no por intuición.
+     */
+    @WithDefault("8")
+    int maximoConversacionesSimultaneas();
 
     /** Registra las peticiones al proveedor. Útil en desarrollo, ruidoso en producción. */
     @WithDefault("false")

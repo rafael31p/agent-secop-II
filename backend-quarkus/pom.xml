@@ -89,6 +89,18 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-scheduler</artifactId>
         </dependency>
+        <!-- Caché de clientes de modelo (SPEC-BE-08 §3.1). La versión la fija el BOM
+             de Quarkus, que ya la gestiona para quarkus-cache; se declara la librería
+             a secas porque lo que hace falta es la estructura de datos, no las
+             anotaciones de caché de Quarkus.
+             AVISO: si algún día se compila la imagen nativa, Caffeine carga sus
+             implementaciones por reflexión y probablemente haga falta quarkus-cache
+             o configuración explícita. Hoy el perfil `native` no se ejercita. -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- ===== Proveedores de IA (LangChain4j como librería) ===== -->
         <dependency>
             <groupId>dev.langchain4j</groupId>

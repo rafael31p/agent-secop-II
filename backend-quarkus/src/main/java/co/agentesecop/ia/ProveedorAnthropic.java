@@ -16,8 +16,9 @@ import java.util.List;
 public class ProveedorAnthropic extends ProveedorLangChain4j {
 
     @Inject
-    public ProveedorAnthropic(ConfiguracionIA config, ObjectMapper jackson) {
-        super(config, jackson);
+    public ProveedorAnthropic(
+            ConfiguracionIA config, ObjectMapper jackson, CierreDiferido cierreDiferido) {
+        super(config, jackson, cierreDiferido);
     }
 
     @Override

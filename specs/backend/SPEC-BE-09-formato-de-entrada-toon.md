@@ -145,13 +145,20 @@ sangrado.
 3. Las enumeraciones conservan su código por cable dentro de la tabla. ✅
 4. Un valor con comas, comillas o saltos de línea no rompe la fila. ✅
 5. El ahorro frente al JSON anterior se mide y se vigila. ✅ (35 %)
-6. El modelo real lee las tablas sin perder elementos. ⚠️ **Verificado solo en parte**
+6. El modelo real lee las tablas sin perder elementos. ✅
 
-El punto 6 se verificó para la tabla de **procesos**: contra Gemini real, la priorización
-devolvió exactamente los cinco procesos enviados, sin inventar ninguno y con los puntajes en
-rango —o sea, leyó bien la tabla—. La verificación de la tabla de **requisitos** (propuesta y
-validación) quedó cortada porque se agotó la cuota diaria del plan gratuito. Se completa
-ejecutando `verificar_flujo_completo.py`, que ya cubre los cinco pasos.
+El punto 6 quedó cerrado con `verificar_flujo_completo.py` contra Gemini real, que comprueba
+coherencia entre pasos y no códigos HTTP:
+
+| Tabla | Qué demuestra |
+|---|---|
+| `procesos` | La priorización devolvió exactamente los procesos enviados, sin inventar ninguno |
+| `requisitos` (propuesta) | Las secciones referencian los requisitos del análisis y **ninguno inexistente** |
+| `requisitos` (validación) | La matriz de cumplimiento coincide **7 de 7** con los requisitos de la tabla |
+
+Ese «7 de 7» es la afirmación que importa: si el modelo hubiera perdido una fila al leer la
+tabla, o hubiera desalineado una columna por una coma sin entrecomillar, la matriz habría
+hablado de otros requisitos y la comprobación lo habría dicho.
 
 ---
 

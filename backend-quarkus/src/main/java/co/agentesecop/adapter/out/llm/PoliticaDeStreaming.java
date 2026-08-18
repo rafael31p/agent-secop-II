@@ -4,6 +4,7 @@ import co.agentesecop.adapter.out.llm.error.ProveedorNoDisponible;
 import co.agentesecop.application.port.out.ModeloDeLenguaje;
 import co.agentesecop.application.port.out.ModeloDeLenguaje.Turno;
 import co.agentesecop.application.port.out.SeleccionDeModelo;
+import co.agentesecop.config.ConfiguracionIA;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.smallrye.mutiny.Multi;
 import jakarta.annotation.PostConstruct;
@@ -13,7 +14,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
  * Cuántas conversaciones pueden estar abiertas a la vez.
@@ -62,11 +62,10 @@ public class PoliticaDeStreaming {
     public PoliticaDeStreaming(
             @Medido ModeloDeLenguaje delegado,
             MeterRegistry metricas,
-            @ConfigProperty(name = "agente.ia.maximo-conversaciones-simultaneas",
-                    defaultValue = "8") int maximoConversaciones) {
+            ConfiguracionIA config) {
         this.delegado = delegado;
         this.metricas = metricas;
-        this.maximoConversaciones = maximoConversaciones;
+        this.maximoConversaciones = config.maximoConversacionesSimultaneas();
     }
 
     @PostConstruct

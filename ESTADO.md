@@ -1,4 +1,4 @@
-# Estado del proyecto — 17 de agosto de 2026
+# Estado del proyecto — 18 de agosto de 2026
 
 Punto de retomada para la próxima sesión.
 
@@ -6,7 +6,7 @@ Punto de retomada para la próxima sesión.
 
 | Componente | Ruta | Estado |
 |---|---|---|
-| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 193/193 pruebas, verificación en vivo y cadena completa coherente. |
+| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 202/202 pruebas, verificación en vivo y cadena completa coherente. |
 | Frontend Next.js | `frontend-next/` | **Terminado y verificado**: 75/75 pruebas y recorrido completo en el navegador. |
 | Backend Python (FastAPI) | `backend/` | Versión anterior. Funciona, ya es redundante. |
 | Frontend React (Vite) | `frontend/` | Versión anterior. **No sirve contra el backend Quarkus** (ver abajo). |
@@ -121,7 +121,7 @@ configurable sin recompilar.
 | 3.7 | 24 pruebas nuevas con WireMock que **cuentan peticiones al proveedor** |
 | 3.8 | Aislamiento de pruebas por defecto, con guardián que falla si alguna clave resuelve no vacía |
 
-Estado de las suites: **193/193 backend · 75/75 frontend**.
+Estado de las suites: **202/202 backend · 75/75 frontend**.
 
 ### Cinco hallazgos de la fase que conviene no olvidar
 
@@ -219,9 +219,36 @@ extracción, carrera del limitador, purga programada y presupuesto de hilos decl
   y como separador de clave era buena idea; el problema es que git clasificaba el archivo
   como binario y `git diff` no mostraba nada. Sustituido por el escape textual.
 
-**Pendiente de esa spec:** BE-K1 y BE-K2, la caché de modelos con Caffeine y cierre
-diferido. Se dejan para su propia entrega porque la spec misma lo pide: es el paso de mayor
-riesgo y toca el camino caliente.
+### 5. La caché de modelos (BE-K1 y BE-K2)
+
+Entregada aparte, como pedía la spec por ser el paso de mayor riesgo.
+`Collections.synchronizedMap` ejecutaba la construcción del cliente —DNS, TLS, pool— dentro
+del monitor, así que **construir un modelo detenía a todos los hilos de ese proveedor**,
+incluso a los que pedían uno ya cacheado. Y la expulsión cerraba clientes que otros hilos
+podían estar usando en mitad de una llamada de dos minutos.
+
+Ahora es Caffeine —bloqueo por clave— más `CierreDiferido`, que espera tres minutos antes
+de cerrar lo expulsado. Se descartó contar referencias: es exacto y es mucho más código
+para acotar lo mismo.
+
+Dos cosas que cambian con Caffeine y conviene no olvidar: **no es LRU estricto** (usa
+W-TinyLFU y puede rechazar la entrada nueva), y **la expulsión es amortizada**. La primera
+versión de la prueba pasaba por el motivo equivocado justamente por lo primero.
+
+### 6. Y una calibración que solo salió midiendo
+
+Con todo lo demás arreglado, la verificación en vivo dejó el cortacircuitos **abierto
+mientras todas las llamadas funcionaban**: `maxRetriesReached` en cero —ninguna petición se
+rindió— y aun así 6 fallos contados de 13. La causa es el orden que fija MicroProfile:
+`Retry` envuelve a `CircuitBreaker`, así que **el circuito cuenta intentos, no llamadas**, y
+el plan gratuito de Gemini falla el 40 % de los intentos en horas punta.
+
+Abrir el circuito ahí es peor que no tenerlo: retira treinta segundos un servicio que los
+reintentos estaban rescatando. Recalibrado a 20 de ventana y 0,8 de proporción, con el
+número delante. Es para lo que servían las métricas.
+
+**Pendiente:** con anotaciones no hay forma de que el circuito cuente llamadas en vez de
+intentos. Si algún día importa, la salida es la API programática de SmallRye.
 
 ## Frontend Next.js: cerrado
 

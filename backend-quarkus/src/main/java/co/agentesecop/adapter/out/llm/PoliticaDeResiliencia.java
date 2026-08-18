@@ -99,8 +99,22 @@ public class PoliticaDeResiliencia {
             // por intento o el presupuesto del caso de uso, no este tope.
             maxDuration = 400_000, durationUnit = ChronoUnit.MILLIS,
             retryOn = FalloTransitorio.class)
-    @CircuitBreaker(requestVolumeThreshold = 8,
-            failureRatio = 0.5,
+    // Los valores salen de una medición, no de una intuición, y la primera versión
+    // estaba mal. Con umbral 8 y proporción 0,5 el circuito se abrió contra Gemini real
+    // MIENTRAS TODAS LAS LLAMADAS FUNCIONABAN: `ft_retry_calls_total{retryResult=
+    // "maxRetriesReached"}` marcaba cero —ninguna petición agotó sus reintentos— y sin
+    // embargo `ft_circuitbreaker_calls_total{circuitBreakerResult="failure"}` iba por 6
+    // de 13. La causa está en el orden que fija MicroProfile: Retry envuelve a
+    // CircuitBreaker, así que el circuito cuenta INTENTOS y no llamadas. Un proveedor que
+    // falla el 40 % de los intentos y responde bien al reintentar —el plan gratuito, en
+    // horas punta— rozaba el umbral de continuo.
+    //
+    // Abrir el circuito ahí es peor que no tenerlo: retira durante treinta segundos un
+    // servicio que estaba funcionando. Con 0,8 sobre 20 intentos hace falta que fallen 16
+    // seguidos, cosa que con una tasa base del 50 % ocurre por azar menos del 1 % de las
+    // veces: el circuito vuelve a significar «el proveedor está caído».
+    @CircuitBreaker(requestVolumeThreshold = 20,
+            failureRatio = 0.8,
             delay = 30_000, delayUnit = ChronoUnit.MILLIS,
             successThreshold = 2,
             failOn = FalloTransitorio.class)
