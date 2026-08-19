@@ -5,6 +5,7 @@ import co.agentesecop.domain.model.procurement.ResultadoDeBusqueda;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -210,10 +211,10 @@ public class SecopCliente {
                     List.of("estado_del_procedimiento", "estado_resumen", "fase"), f.estado()));
         }
         if (f.valorMin() != null) {
-            clausulas.add("precio_base >= " + f.valorMin());
+            clausulas.add("precio_base >= " + numero(f.valorMin()));
         }
         if (f.valorMax() != null) {
-            clausulas.add("precio_base <= " + f.valorMax());
+            clausulas.add("precio_base <= " + numero(f.valorMax()));
         }
         if (noVacio(f.fechaDesde())) {
             if (FECHA_ISO.matcher(f.fechaDesde().trim()).matches()) {
@@ -254,6 +255,32 @@ public class SecopCliente {
 
     private static String likeCrudo(String campo, String valor) {
         return "upper(%s) like upper('%%%s%%')".formatted(campo, escapar(valor));
+    }
+
+    /**
+     * Un importe tal y como debe aparecer en SoQL: nunca en notación científica.
+     *
+     * <h2>El defecto que corrige</h2>
+     *
+     * <p>Los importes eran {@code Double} y se concatenaban con {@code +}, que llama a
+     * {@code Double.toString}. Java pasa a notación científica <b>a partir de diez
+     * millones</b>, así que la cláusula salía como {@code precio_base >= 1.0E7}. Socrata la
+     * rechaza.
+     *
+     * <p>Y lo que ocurría después es lo que lo volvía grave: la consulta fallaba,
+     * {@link #consultar} capturaba la excepción y devolvía {@code null}, y {@link #buscar}
+     * reintentaba <b>sin cláusula {@code WHERE}</b>. Quien pedía «procesos de
+     * ciberseguridad entre 100 y 500 millones» recibía los últimos procesos de cualquier
+     * tipo del país, con HTTP 200 y un aviso entre otros. No es inyección, y el efecto es
+     * el mismo: <b>la consulta que se ejecuta no es la que se pidió, y nadie lo sabe</b>.
+     *
+     * <p>En contratación pública colombiana diez millones de pesos es un contrato pequeño y
+     * el frontend usa saltos de un millón en ese campo, así que no era un caso extremo sino
+     * el caso normal. La prueba que debía cubrirlo usaba uno y cinco millones: las dos por
+     * debajo del umbral, verde desde el principio sobre un defecto activo.
+     */
+    static String numero(BigDecimal valor) {
+        return valor.stripTrailingZeros().toPlainString();
     }
 
     /** Escapa comillas simples para literales SoQL. */
@@ -297,7 +324,7 @@ public class SecopCliente {
                 valor(fila, "tipoContrato"),
                 valor(fila, "ordenEntidad"),
                 valor(fila, "adjudicado"),
-                aDouble(valor(fila, "valor")),
+                aDecimal(valor(fila, "valor")),
                 valor(fila, "fechaPublicacion"),
                 valor(fila, "fechaUltimaPublicacion"),
                 extraerUrl(fila.get("urlproceso")),
@@ -336,12 +363,13 @@ public class SecopCliente {
         return texto;
     }
 
-    static Double aDouble(String valor) {
+    /** El importe de un proceso, como número exacto. Ver {@link #numero} para el porqué. */
+    static BigDecimal aDecimal(String valor) {
         if (valor == null) {
             return null;
         }
         try {
-            return Double.valueOf(valor.replace("$", "").replace(",", "").trim());
+            return new BigDecimal(valor.replace("$", "").replace(",", "").trim());
         } catch (NumberFormatException e) {
             return null;
         }

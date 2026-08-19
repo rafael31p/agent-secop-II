@@ -6,7 +6,7 @@ Punto de retomada para la próxima sesión.
 
 | Componente | Ruta | Estado |
 |---|---|---|
-| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 202/202 pruebas, verificación en vivo y cadena completa coherente. |
+| Backend Java (Quarkus) | `backend-quarkus/` | **Terminado y verificado**: 213/213 pruebas, verificación en vivo y cadena completa coherente. |
 | Frontend Next.js | `frontend-next/` | **Terminado y verificado**: 75/75 pruebas y recorrido completo en el navegador. |
 | Backend Python (FastAPI) | `backend/` | Versión anterior. Funciona, ya es redundante. |
 | Frontend React (Vite) | `frontend/` | Versión anterior. **No sirve contra el backend Quarkus** (ver abajo). |
@@ -121,7 +121,7 @@ configurable sin recompilar.
 | 3.7 | 24 pruebas nuevas con WireMock que **cuentan peticiones al proveedor** |
 | 3.8 | Aislamiento de pruebas por defecto, con guardián que falla si alguna clave resuelve no vacía |
 
-Estado de las suites: **202/202 backend · 75/75 frontend**.
+Estado de las suites: **213/213 backend · 75/75 frontend**.
 
 ### Cinco hallazgos de la fase que conviene no olvidar
 
@@ -161,6 +161,58 @@ fase—. El circuito se cerró solo al recuperarse el proveedor.
 Además, `verificar_en_vivo.py` pasa sus 8 secciones y `verificar_flujo_completo.py`
 confirma que la cadena buscar → priorizar → analizar → proponer → validar sigue siendo
 coherente de extremo a extremo.
+
+## Hotfix 0.2.1 · Importes y entrada hostil
+
+Cuatro puntos de la fase 7 adelantados, porque uno de ellos no era endurecimiento sino una
+**corrección de algo que fallaba todos los días**. Detalle en
+[SPEC-SEC-01](specs/seguridad/SPEC-SEC-01-auditoria-de-seguridad.md) §8.
+
+| | Qué quedó |
+|---|---|
+| 7.1 | Importes a `BigDecimal` con `toPlainString` en SoQL (SEC-1) |
+| 7.2 | Cotas de descompresión de POI al arranque, en todos los perfiles (SEC-3) |
+| 7.3 | `registrar-peticiones=true` impide arrancar en producción (SEC-8) |
+| 7.4 | Regex de marcas de página acotada a `[ 	]`, con prueba de tiempo (SEC-6) |
+
+### El defecto que fallaba todos los días
+
+`valorMin` era un `Double` y se concatenaba en la consulta. **Java pasa a notación
+científica a partir de diez millones**, así que la cláusula salía `precio_base >= 1.0E7` y
+Socrata la rechazaba. Entonces `consultar` capturaba la excepción, devolvía `null` y
+`buscar` reintentaba **sin cláusula `WHERE`**: quien pedía «procesos entre 100 y 500
+millones» recibía los últimos procesos de cualquier tipo del país, con HTTP 200.
+
+En contratación pública colombiana diez millones es un contrato pequeño y el frontend avanza
+de millón en millón, así que no era un caso extremo: era el caso normal.
+
+### Tres pruebas llevaban el defecto dentro
+
+Y es lo que más conviene recordar de esta entrega:
+
+1. **`rangoDeValor`** usaba uno y cinco millones, las dos por debajo del umbral. Verde desde
+   el principio sobre un defecto activo.
+2. **`mapeaFilaReal`** afirmaba `assertEquals(1_500_000_000.0, proceso.valor())`, es decir,
+   daba por bueno el `Double` `1.5E9` como valor esperado.
+3. **`ProcesosResourceTest`** afirmaba `.body("procesos[0].valor", is(1.5E9f))`: la respuesta
+   HTTP **también** llevaba notación científica. Es JSON válido y el navegador lo interpreta
+   igual, así que no rompía nada, pero era la misma raíz asomando por el otro extremo.
+
+Ninguna detectaba el problema; las tres lo documentaban como correcto.
+
+### Y una prueba mía que tampoco probaba nada
+
+La primera versión de la prueba de SEC-6 usaba 800 000 espacios **sin saltos de línea**, y el
+patrón defectuoso la pasaba en 8 ms. El coste cuadrático necesita muchas **líneas**: como
+`\s` incluye el salto, cada inicio de línea puede consumir hasta el final del texto. Con
+50 000 líneas de espacios —200 KB— el patrón anterior **seguía corriendo tras ocho segundos**
+y el acotado tarda 23 ms. La prueba usa ahora esa entrada.
+
+### Verificado en el jar
+
+SEC-8 se comprobó donde se comprueban las otras validaciones de arranque, no con una prueba:
+con `registrar-peticiones=true` el arranque en producción falla con el motivo escrito, y con
+`false` arranca en dos segundos.
 
 ## Revisión del PR #2: lo que salió de ahí
 

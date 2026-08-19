@@ -202,6 +202,66 @@ todo término de dominio que no tenga traducción evidente.
 
 ---
 
+## Fase 7 · Endurecimiento de seguridad
+
+**Objetivo:** cerrar las vías por las que una entrada hostil —o simplemente grande— cambia lo
+que el sistema hace. **Duración:** 4–6 jornadas. **Depende de:** fase 1 (autenticación y
+límites ya montados).
+
+Sale de la auditoría de [SPEC-SEC-01](seguridad/SPEC-SEC-01-auditoria-de-seguridad.md), hecha
+sobre el código ya refactorizado. **No espera a la fase 6**: los pasos 7.1 a 7.4 se pueden
+adelantar en cualquier momento y conviene hacerlo, porque uno de ellos corrige algo que falla
+todos los días.
+
+| # | Acción | Cierra | Esfuerzo |
+|---|---|---|---|
+| 7.1 ✅ | Importes a `BigDecimal` y `toPlainString` en SoQL. **Hoy cualquier filtro de valor ≥ 10 000 000 emite `1.0E7` y degrada a búsqueda sin filtros.** | SEC-1 | 0,5 j |
+| 7.2 ✅ | Cotas de descompresión de POI (`minInflateRatio`, `maxEntrySize`) fijadas al arranque. | SEC-3 | 0,5 j |
+| 7.3 ✅ | `registrar-peticiones=true` prohibido en `%prod`: vuelca pliegos completos al registro. | SEC-8 | 0,2 j |
+| 7.4 ✅ | Regex de marcas de página acotada a `[ \t]`, con prueba de tiempo. | SEC-6 | 0,2 j |
+| 7.5 | Autenticación por **denegación por defecto**; `GET /api/procesos/{id}` deja de estar abierto. | SEC-2 | 1 j |
+| 7.6 | El formato del documento lo decide el contenido, no la extensión; nombre saneado al devolverlo. | SEC-5 | 0,5 j |
+| 7.7 | Pruebas de XXE y de bomba de descompresión, con artefactos generados en la prueba. | SEC-4 | 1 j |
+| 7.8 | Cabeceras de seguridad en ambos módulos y CSP en el frontend. | SEC-10 | 0,5 j |
+| 7.9 | `gitleaks`, OWASP Dependency-Check y `npm audit` en CI. | SEC-11 | 0,5 j |
+| 7.10 | Saneamiento del Markdown generado por el modelo — **bloqueante** para `SPEC-FE-03` §3.6. | SEC-7 | con FE-03 |
+
+Los pasos 7.1 a 7.4 suman menos de jornada y media. El 7.1 no es endurecimiento sino
+corrección: la prueba que debía cubrirlo usa importes por debajo del umbral en que Java pasa
+a notación científica, así que lleva verde desde el principio sobre un defecto activo.
+
+**Los cuatro salieron en el hotfix `0.2.1`**, adelantados por eso mismo. Detalle y
+mediciones en [SPEC-SEC-01](seguridad/SPEC-SEC-01-auditoria-de-seguridad.md) §8. Dos cosas
+que conviene recordar de esa entrega: había una **segunda** prueba que llevaba el defecto de
+SEC-1 dentro, como valor esperado; y la primera versión de la prueba de SEC-6 no probaba
+nada, porque usaba espacios sin saltos de línea y el patrón defectuoso la pasaba en 8 ms.
+
+**Criterio de salida:** ningún endpoint queda abierto por omisión; un archivo hostil no
+tumba el proceso; ninguna consulta se degrada en silencio por una conversión de tipo; y CI
+falla ante un secreto o una dependencia con CVSS ≥ 7.
+
+---
+
+## Fase 8 · Verificación: integración y carga
+
+**Objetivo:** demostrar que lo construido se comporta como dice, con las dependencias reales
+sustituidas por dobles y bajo carga. **Duración:** 6–9 jornadas. **Depende de:** fase 3
+(métricas) y fase 7 (no tiene sentido medir carga sobre una superficie que va a cambiar).
+
+| # | Acción | Spec |
+|---|---|---|
+| 8.1 | Pruebas de integración del backend con WireMock: contrato HTTP, resiliencia, seguridad y SSE. | [QA-01](calidad/SPEC-QA-01-pruebas-de-integracion.md) |
+| 8.2 | Pruebas de integración del frontend contra una pasarela falsa, más recorrido de extremo a extremo con Playwright. | QA-01 |
+| 8.3 | Perfiles de carga del backend con k6: búsqueda, análisis, chat y carga de documentos. | [QA-02](calidad/SPEC-QA-02-pruebas-de-carga.md) |
+| 8.4 | Medición del frontend: Lighthouse CI y presupuestos de rendimiento. | QA-02 |
+| 8.5 | Umbrales de carga convertidos en los SLO de `SPEC-NT-03` §3.4. | QA-02 |
+
+**Criterio de salida:** cada política declarada en las fases 2, 3 y 7 tiene una prueba de
+integración que la demuestra, y existe una línea base de carga con la que comparar la
+siguiente entrega.
+
+---
+
 ## Plano no técnico
 
 Corre en paralelo. No depende de las fases técnicas y no debería esperarlas.

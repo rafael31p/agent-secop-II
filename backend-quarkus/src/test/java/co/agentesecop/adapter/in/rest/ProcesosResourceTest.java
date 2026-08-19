@@ -88,7 +88,12 @@ class ProcesosResourceTest {
                 .body("dataset", is("p6dx-8zbt"))
                 .body("procesos[0].id", is("CO1.REQ.111"))
                 .body("procesos[0].numeroProceso", is("LP-2026-001"))
-                .body("procesos[0].valor", is(1.5E9f))
+                // Mil quinientos millones, con todos sus dígitos. Esta aserción decía
+                // `is(1.5E9f)`: la respuesta HTTP llevaba notación científica porque el
+                // campo era un `Double` y Jackson lo serializa con `toString()`. Es JSON
+                // válido y el navegador lo interpreta igual, pero era la misma raíz que
+                // rompía la consulta SoQL, asomando por el otro extremo.
+                .body("procesos[0].valor", is(1500000000))
                 .body("procesos[0].duracion", is("12 Mes(es)"))
                 .body("procesos[0].url", is("https://community.secop.gov.co/proceso/111"))
                 .body("procesos[0].scoreTi", greaterThan(20));

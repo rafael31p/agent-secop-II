@@ -91,7 +91,7 @@ class RedactorDePromptsTest {
     void priorizacionEnviaLoNecesario() {
         var proceso = new ProcesoDeContratacion(
                 "CO1", "LP-001", "MinTIC", "899999", "Bogotá", "Bogotá", "Portal",
-                "Licitación", "Publicado", "Prestación", "Nacional", "No", 1000.0,
+                "Licitación", "Publicado", "Prestación", "Nacional", "No", new java.math.BigDecimal("1000"),
                 "2026-01-01", "2026-01-02", "https://secop.example/proceso",
                 "V1.81112", "12 meses", 47, List.of("software", "portal"));
 

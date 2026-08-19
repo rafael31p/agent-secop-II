@@ -1,5 +1,6 @@
 package co.agentesecop.adapter.in.rest.dto;
 
+import java.math.BigDecimal;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
@@ -22,7 +23,7 @@ public final class ProcesosDto {
             @Schema(description = "Nacional o Territorial.") String ordenEntidad,
             String adjudicado,
             @Schema(description = "Precio base del proceso, en pesos colombianos.")
-            Double valor,
+            BigDecimal valor,
             String fechaPublicacion,
             @Schema(description = "Fecha de última publicación. El conjunto de datos "
                     + "abierto no expone la fecha de cierre de recepción de ofertas; "

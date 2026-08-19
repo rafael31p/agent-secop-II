@@ -1,6 +1,7 @@
 package co.agentesecop.domain.model.procurement;
 
 import co.agentesecop.domain.shared.Listas;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -29,7 +30,7 @@ public record ProcesoDeContratacion(
         String tipoContrato,
         String ordenEntidad,
         String adjudicado,
-        Double valor,
+        BigDecimal valor,
         String fechaPublicacion,
         String fechaUltimaPublicacion,
         String url,

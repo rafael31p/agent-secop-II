@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -153,9 +154,24 @@ public class ExtractorDocumentos {
      * del aviso de que necesita OCR.
      */
     static boolean sinContenidoUtil(String texto) {
-        String sinMarcas = texto.replaceAll("(?m)^\\s*---\\s*Página\\s+\\d+\\s*---\\s*$", "");
-        return sinMarcas.isBlank();
+        return MARCA_DE_PAGINA.matcher(texto).replaceAll("").isBlank();
     }
+
+    /**
+     * Las marcas de página, con el espacio acotado a espacios y tabuladores.
+     *
+     * <p>La versión anterior usaba {@code \\s}, que <b>en Java incluye el salto de
+     * línea</b>. Con {@code (?m)^\\s*...\\s*$} el patrón dejaba de estar acotado por
+     * línea y podía cruzar varias, así que el retroceso del motor crecía de forma
+     * cuadrática sobre un texto que elige quien sube el documento: un PDF con cientos
+     * de miles de espacios y saltos bastaba para dejar el hilo dando vueltas.
+     *
+     * <p>Con {@code [ \\t]} el patrón hace lo que dice —una marca ocupa una línea— y su
+     * coste vuelve a ser lineal. El tope de dígitos es la otra mitad: sin él, una tira
+     * de un millón de cifras seguiría siendo un ancla para el retroceso.
+     */
+    private static final Pattern MARCA_DE_PAGINA = Pattern.compile(
+            "(?m)^[ \\t]*---[ \\t]*Página[ \\t]+\\d{1,6}[ \\t]*---[ \\t]*$");
 
     /** Colapsa las líneas en blanco repetidas para no gastar tokens en espacio vacío. */
     static String limpiar(String texto) {

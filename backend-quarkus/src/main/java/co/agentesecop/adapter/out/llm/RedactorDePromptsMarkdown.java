@@ -11,6 +11,7 @@ import co.agentesecop.application.port.out.RedactorDePrompts;
 import co.agentesecop.domain.model.tender.RequisitoTecnico;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -157,7 +158,7 @@ public class RedactorDePromptsMarkdown implements RedactorDePrompts {
 
     private record ResumenParaClasificar(
             String id, String entidad, String objeto, String modalidad, String estado,
-            String tipoContrato, Double valor, String duracion, String fechaPublicacion,
+            String tipoContrato, BigDecimal valor, String duracion, String fechaPublicacion,
             String departamento) {}
 
     /** Base, más la exigencia de JSON, más la instrucción de la tarea. */

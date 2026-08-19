@@ -172,4 +172,52 @@ class ExtractorDocumentosTest {
             return salida.toByteArray();
         }
     }
+
+    /**
+     * La regex de marcas de página, acotada (SEC-6).
+     *
+     * <p>El patrón anterior usaba {@code \s}, que en Java incluye el salto de línea, así que
+     * {@code ^\s*...\s*$} cruzaba líneas y el retroceso del motor dejaba de estar acotado.
+     * El texto que lo alimenta lo elige quien sube el documento: bastaba un PDF con cientos
+     * de miles de espacios para dejar el hilo dando vueltas, y con el mamparo de extracción
+     * en cuatro, cuatro archivos así agotan la capacidad.
+     *
+     * <p>El límite de un segundo es holgado a propósito: el patrón correcto resuelve esto en
+     * milisegundos, y el incorrecto no termina. No se está midiendo rendimiento, se está
+     * distinguiendo lineal de cuadrático.
+     */
+    @Test
+    @org.junit.jupiter.api.Timeout(10)
+    @DisplayName("Un texto con muchas líneas en blanco no atasca la detección de marcas")
+    void laRegexDeMarcasNoSeAtasca() {
+        // Muchas LÍNEAS, no muchos espacios, y la diferencia es todo el defecto. Con `\s`
+        // —que en Java incluye el salto de línea— cada inicio de línea podía consumir hasta
+        // el final del texto, así que el coste crecía con el cuadrado del número de líneas.
+        // La primera versión de esta prueba usaba 800.000 espacios SIN saltos: un único
+        // inicio de línea, coste lineal, y el patrón defectuoso la pasaba en 8 ms.
+        //
+        // Medido con este texto: el patrón anterior seguía corriendo tras ocho segundos; el
+        // acotado tarda veintitrés milisegundos. Y son 200 KB, muy por debajo del límite de
+        // 800.000 caracteres que admite la carga.
+        String hostil = "   \n".repeat(50_000);
+
+        long inicio = System.nanoTime();
+        boolean vacio = ExtractorDocumentos.sinContenidoUtil(hostil);
+        long millis = (System.nanoTime() - inicio) / 1_000_000;
+
+        assertTrue(vacio, "Solo espacios y saltos: no hay contenido útil");
+        assertTrue(millis < 1_000,
+                "La detección tardó %d ms: el retroceso volvió a ser cuadrático".formatted(millis));
+    }
+
+    @Test
+    @DisplayName("Y sigue reconociendo las marcas que inserta el propio extractor")
+    void laRegexSigueReconociendoLasMarcas() {
+        assertTrue(ExtractorDocumentos.sinContenidoUtil(
+                "\n\n--- Página 1 ---\n\n\n--- Página 2 ---\n"),
+                "Un PDF escaneado sin capa de texto debe detectarse como vacío");
+        assertFalse(ExtractorDocumentos.sinContenidoUtil(
+                "--- Página 1 ---\nObjeto del contrato: portal ciudadano"),
+                "Con texto real no está vacío");
+    }
 }

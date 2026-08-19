@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
@@ -88,8 +89,12 @@ public final class Solicitudes {
             @Size(max = 200) String departamento,
             @Size(max = 200) String modalidad,
             @Size(max = 200) String estado,
-            @PositiveOrZero @DecimalMax("1e15") Double valorMin,
-            @PositiveOrZero @DecimalMax("1e15") Double valorMax,
+            // BigDecimal y no Double: son pesos, y el punto flotante binario nunca fue el
+            // tipo correcto para dinero. Además, `Double.toString` pasa a notación
+            // científica a partir de diez millones —un contrato pequeño en contratación
+            // pública— y ese texto acababa dentro de una consulta SoQL que Socrata rechaza.
+            @PositiveOrZero @DecimalMax("1e15") BigDecimal valorMin,
+            @PositiveOrZero @DecimalMax("1e15") BigDecimal valorMax,
             @Schema(description = "Fecha ISO, ej. 2026-01-01")
             @Size(max = 30) String fechaDesde,
             @Schema(description = "Fecha ISO, ej. 2026-12-31")
@@ -107,7 +112,7 @@ public final class Solicitudes {
         }
 
         public boolean rangoDeValorInvertido() {
-            return valorMin != null && valorMax != null && valorMin > valorMax;
+            return valorMin != null && valorMax != null && valorMin.compareTo(valorMax) > 0;
         }
     }
 

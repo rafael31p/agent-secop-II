@@ -56,6 +56,14 @@ implementar.
 | [SPEC-FE-04](frontend/SPEC-FE-04-sistema-de-componentes.md) | Sistema de componentes reutilizables | 🟠 Media |
 | [SPEC-FE-05](frontend/SPEC-FE-05-idioma-y-nomenclatura.md) | Migración del código a inglés y contrato tipado generado | 🟡 Baja |
 
+### Especificaciones de seguridad y calidad
+
+| Spec | Título | Prioridad |
+|---|---|---|
+| [SPEC-SEC-01](seguridad/SPEC-SEC-01-auditoria-de-seguridad.md) | Auditoría de seguridad: inyección, entrada no confiable y superficie expuesta | 🔴 Alta |
+| [SPEC-QA-01](calidad/SPEC-QA-01-pruebas-de-integracion.md) | Pruebas de integración: backend y frontend | 🟠 Media |
+| [SPEC-QA-02](calidad/SPEC-QA-02-pruebas-de-carga.md) | Pruebas de carga y rendimiento: backend y frontend | 🟠 Media |
+
 ### Especificaciones de documentación
 
 | Spec | Título | Prioridad |

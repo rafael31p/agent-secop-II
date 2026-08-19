@@ -244,7 +244,7 @@ incluye la credencial.
 
 ```bash
 cd backend-quarkus
-./mvnw test                    # 202 pruebas, sin red ni credenciales
+./mvnw test                    # 213 pruebas, sin red ni credenciales
 python verificar_en_vivo.py    # extremo a extremo contra el servidor levantado
 ```
 
