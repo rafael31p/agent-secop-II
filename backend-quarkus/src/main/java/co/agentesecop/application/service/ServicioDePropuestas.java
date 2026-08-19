@@ -8,6 +8,8 @@ import co.agentesecop.domain.model.proposal.Propuesta;
 import co.agentesecop.domain.shared.PeticionInvalida;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.temporal.ChronoUnit;
+import org.eclipse.microprofile.faulttolerance.Timeout;
 
 /** Redacta el borrador de propuesta técnica. */
 @ApplicationScoped
@@ -22,7 +24,9 @@ public class ServicioDePropuestas implements GenerarPropuesta {
         this.prompts = prompts;
     }
 
+    /** Presupuesto de la petición completa. Ver {@code ServicioDeValidacion}. */
     @Override
+    @Timeout(value = 180_000, unit = ChronoUnit.MILLIS)
     public Propuesta generar(ComandoDePropuesta comando) {
         if (comando.sinReferencia()) {
             throw new PeticionInvalida(

@@ -5,6 +5,7 @@ import co.agentesecop.domain.model.procurement.ResultadoDeBusqueda;
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.FiltroProcesos;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 
 /** Consulta de procesos de contratación en SECOP II. */
@@ -66,7 +66,8 @@ public class SecopCliente {
     private static final int MUESTRA_MINIMA = 200;
     private static final int LIMITE_MAXIMO_SOCRATA = 1000;
 
-    private final SecopApi api;
+    private final ConsultaResiliente consultas;
+    private final EstadoDeLaFuente estado;
     private final String datasetProcesos;
     private final String appToken;
 
@@ -78,17 +79,20 @@ public class SecopCliente {
      */
     @Inject
     public SecopCliente(
-            @RestClient SecopApi api,
+            ConsultaResiliente consultas,
+            EstadoDeLaFuente estado,
             @ConfigProperty(name = "agente.secop.dataset-procesos") String datasetProcesos,
             @ConfigProperty(name = "agente.secop.app-token") Optional<String> appToken) {
-        this.api = api;
+        this.consultas = consultas;
+        this.estado = estado;
         this.datasetProcesos = datasetProcesos;
         this.appToken = appToken.orElse("");
     }
 
     /** Constructor directo, para pruebas que no necesitan el contenedor. */
-    SecopCliente(SecopApi api, String datasetProcesos, String appToken) {
-        this.api = api;
+    SecopCliente(ConsultaResiliente consultas, String datasetProcesos, String appToken) {
+        this.consultas = consultas;
+        this.estado = new EstadoDeLaFuente();
         this.datasetProcesos = datasetProcesos;
         this.appToken = appToken == null ? "" : appToken;
     }
@@ -162,14 +166,17 @@ public class SecopCliente {
     private List<Map<String, Object>> consultar(
             int limite, int offset, String orden, String where, List<String> advertencias) {
         try {
-            return api.consultar(
+            List<Map<String, Object>> filas = consultas.consultar(
                     datasetProcesos, limite, offset, orden, where,
                     appToken.isBlank() ? null : appToken);
+            estado.registrarExito();
+            return filas;
         } catch (RuntimeException e) {
             // El detalle va al registro; al usuario, un mensaje de catálogo cerrado. La
             // excepción del cliente HTTP puede incluir la URL completa —con el app token
             // en la cadena de consulta— y esa cadena se pintaría en el navegador.
             LOG.warn("Error consultando SECOP", e);
+            estado.registrarFallo(e.getClass().getSimpleName());
             advertencias.add("La fuente de datos de SECOP II no respondió correctamente. "
                     + "Reintenta en unos minutos.");
             return null;
@@ -204,10 +211,10 @@ public class SecopCliente {
                     List.of("estado_del_procedimiento", "estado_resumen", "fase"), f.estado()));
         }
         if (f.valorMin() != null) {
-            clausulas.add("precio_base >= " + f.valorMin());
+            clausulas.add("precio_base >= " + numero(f.valorMin()));
         }
         if (f.valorMax() != null) {
-            clausulas.add("precio_base <= " + f.valorMax());
+            clausulas.add("precio_base <= " + numero(f.valorMax()));
         }
         if (noVacio(f.fechaDesde())) {
             if (FECHA_ISO.matcher(f.fechaDesde().trim()).matches()) {
@@ -248,6 +255,32 @@ public class SecopCliente {
 
     private static String likeCrudo(String campo, String valor) {
         return "upper(%s) like upper('%%%s%%')".formatted(campo, escapar(valor));
+    }
+
+    /**
+     * Un importe tal y como debe aparecer en SoQL: nunca en notación científica.
+     *
+     * <h2>El defecto que corrige</h2>
+     *
+     * <p>Los importes eran {@code Double} y se concatenaban con {@code +}, que llama a
+     * {@code Double.toString}. Java pasa a notación científica <b>a partir de diez
+     * millones</b>, así que la cláusula salía como {@code precio_base >= 1.0E7}. Socrata la
+     * rechaza.
+     *
+     * <p>Y lo que ocurría después es lo que lo volvía grave: la consulta fallaba,
+     * {@link #consultar} capturaba la excepción y devolvía {@code null}, y {@link #buscar}
+     * reintentaba <b>sin cláusula {@code WHERE}</b>. Quien pedía «procesos de
+     * ciberseguridad entre 100 y 500 millones» recibía los últimos procesos de cualquier
+     * tipo del país, con HTTP 200 y un aviso entre otros. No es inyección, y el efecto es
+     * el mismo: <b>la consulta que se ejecuta no es la que se pidió, y nadie lo sabe</b>.
+     *
+     * <p>En contratación pública colombiana diez millones de pesos es un contrato pequeño y
+     * el frontend usa saltos de un millón en ese campo, así que no era un caso extremo sino
+     * el caso normal. La prueba que debía cubrirlo usaba uno y cinco millones: las dos por
+     * debajo del umbral, verde desde el principio sobre un defecto activo.
+     */
+    static String numero(BigDecimal valor) {
+        return valor.stripTrailingZeros().toPlainString();
     }
 
     /** Escapa comillas simples para literales SoQL. */
@@ -291,7 +324,7 @@ public class SecopCliente {
                 valor(fila, "tipoContrato"),
                 valor(fila, "ordenEntidad"),
                 valor(fila, "adjudicado"),
-                aDouble(valor(fila, "valor")),
+                aDecimal(valor(fila, "valor")),
                 valor(fila, "fechaPublicacion"),
                 valor(fila, "fechaUltimaPublicacion"),
                 extraerUrl(fila.get("urlproceso")),
@@ -330,12 +363,13 @@ public class SecopCliente {
         return texto;
     }
 
-    static Double aDouble(String valor) {
+    /** El importe de un proceso, como número exacto. Ver {@link #numero} para el porqué. */
+    static BigDecimal aDecimal(String valor) {
         if (valor == null) {
             return null;
         }
         try {
-            return Double.valueOf(valor.replace("$", "").replace(",", "").trim());
+            return new BigDecimal(valor.replace("$", "").replace(",", "").trim());
         } catch (NumberFormatException e) {
             return null;
         }

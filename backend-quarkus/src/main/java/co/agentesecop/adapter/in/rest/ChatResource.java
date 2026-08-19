@@ -1,7 +1,7 @@
 package co.agentesecop.adapter.in.rest;
 
 import co.agentesecop.adapter.in.rest.dto.Solicitudes.SolicitudChat;
-import co.agentesecop.ia.ErroresIA;
+import co.agentesecop.adapter.out.llm.error.ErrorDelAgente;
 import co.agentesecop.adapter.in.rest.mapper.ComandosMapper;
 import co.agentesecop.application.port.in.ConversarConElAgente;
 import io.smallrye.common.annotation.Blocking;
@@ -56,7 +56,7 @@ public class ChatResource {
         try {
             fragmentos = conversar.conversar(ComandosMapper.aComando(solicitud))
                     .map(texto -> evento(sse, "delta", Map.of("texto", texto)));
-        } catch (ErroresIA.ErrorAgente error) {
+        } catch (ErrorDelAgente error) {
             // El proveedor puede fallar antes de abrir el flujo (clave ausente, modelo
             // inexistente). Se reporta por el mismo canal en vez de romper la conexión.
             fragmentos = Multi.createFrom()
@@ -79,7 +79,7 @@ public class ChatResource {
     }
 
     private static String mensajeDe(Throwable error) {
-        if (error instanceof ErroresIA.ErrorAgente agente) {
+        if (error instanceof ErrorDelAgente agente) {
             return agente.getMessage();
         }
         return error.getMessage() == null

@@ -2,6 +2,7 @@ package co.agentesecop.config;
 
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
+import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -26,17 +27,40 @@ public interface ConfiguracionIA {
     @WithDefault("0.2")
     double temperatura();
 
-    /** Segundos de espera antes de abortar una llamada al modelo. */
+    /**
+     * Segundos de espera del cliente HTTP antes de abortar una llamada al modelo.
+     *
+     * <p>Es la última red, no el presupuesto: quien acota de verdad la llamada es el
+     * {@code @Timeout} de {@code ModeloDeLenguajeResiliente}, y quien acota la petición
+     * completa es el del caso de uso. Este valor se deja por encima de ambos para que el
+     * que corte sea siempre el de Fault Tolerance, que sabe reintentar y contar métricas.
+     *
+     * <p>Aquí vivían también {@code intentosMaximos} y {@code esperaBaseMillis}. Ya no:
+     * la política de reintentos es configuración de MicroProfile Fault Tolerance
+     * ({@code …/Retry/maxRetries}) y tenerla además aquí habría dejado dos fuentes de
+     * verdad para el mismo número.
+     */
     @WithDefault("300")
     int timeoutSegundos();
 
-    /** Intentos totales ante fallos transitorios (429, 5xx) del proveedor. */
-    @WithDefault("3")
-    int intentosMaximos();
+    /**
+     * Cuánto se espera antes de cerrar un cliente expulsado de la caché de modelos.
+     *
+     * <p>Por encima del {@code @Timeout} por intento, con margen: expulsar de una caché no
+     * es lo mismo que dejar de usar, y la referencia que la caché ya entregó puede estar en
+     * mitad de una llamada. Ver {@code ia.CierreDiferido}.
+     */
+    @WithDefault("PT3M")
+    Duration graciaDeCierre();
 
-    /** Espera base del retroceso exponencial entre reintentos, en milisegundos. */
-    @WithDefault("2000")
-    long esperaBaseMillis();
+    /**
+     * Cuántas conversaciones de chat pueden estar abiertas a la vez.
+     *
+     * <p>Ocho es mucho para el uso previsto. Se calibra con la métrica
+     * {@code llm.conversaciones.disponibles}, no por intuición.
+     */
+    @WithDefault("8")
+    int maximoConversacionesSimultaneas();
 
     /** Registra las peticiones al proveedor. Útil en desarrollo, ruidoso en producción. */
     @WithDefault("false")

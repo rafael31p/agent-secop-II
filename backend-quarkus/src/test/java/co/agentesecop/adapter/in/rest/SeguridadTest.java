@@ -93,7 +93,7 @@ class SeguridadTest {
     @DisplayName("Con la clave correcta la petición llega al agente")
     void claveCorrecta() {
         Mockito.when(analizarPliego.analizar(Mockito.any()))
-                .thenThrow(new co.agentesecop.ia.ErroresIA.ProveedorNoConfigurado("sin clave"));
+                .thenThrow(new co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado("sin clave"));
 
         given().contentType(ContentType.JSON)
                 .header("X-Api-Key", CLAVE)

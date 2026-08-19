@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CLAVE_ESPACIO, CLAVE_PERFIL, ProveedorEspacio, useEspacio } from "@/lib/estado";
 import { analisis, proceso } from "./ayudas";
 
@@ -100,6 +100,45 @@ describe("espacio de trabajo", () => {
     expect(JSON.parse(sessionStorage.getItem(CLAVE_ESPACIO)!).textoPliego).toBe(
       "Pliego previo",
     );
+  });
+
+  it("nunca escribe un espacio vacío encima de uno con contenido", async () => {
+    // Regresión de un defecto real, encontrado recorriendo la aplicación en el
+    // navegador y no por las pruebas. El guardado se saltaba con un `useRef`
+    // que el propio efecto de restauración ponía a `true`; como los dos efectos
+    // corren en el mismo commit, el de guardado veía todavía el estado vacío y
+    // lo escribía encima de lo restaurado. Con StrictMode repitiendo los
+    // efectos, la segunda restauración leía lo ya machacado y la pérdida
+    // quedaba consolidada: el espacio se borraba en cada carga de página.
+    //
+    // Comprobar solo el valor final no bastaba —acababa siendo correcto en
+    // jsdom—, así que aquí se vigila cada escritura.
+    sessionStorage.setItem(
+      CLAVE_ESPACIO,
+      JSON.stringify({ textoPliego: "Pliego previo", analisis: analisis() }),
+    );
+    const escrituras: string[] = [];
+    const original = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      clave: string,
+      valor: string,
+    ) {
+      if (clave === CLAVE_ESPACIO) escrituras.push(valor);
+      original.call(this, clave, valor);
+    });
+
+    montar();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("requisitos")).toHaveTextContent("1");
+    });
+
+    const vaciados = escrituras.filter((valor) => {
+      const guardado = JSON.parse(valor);
+      return !guardado.textoPliego && !guardado.analisis;
+    });
+    expect(vaciados).toEqual([]);
   });
 
   it("guarda el perfil del oferente entre sesiones, no solo entre pestañas", async () => {

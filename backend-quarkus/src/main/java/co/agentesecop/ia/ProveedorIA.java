@@ -34,9 +34,12 @@ public interface ProveedorIA {
     /**
      * Pide una respuesta que cumpla el esquema JSON derivado de {@code tipo}.
      *
-     * @throws ErroresIA.ProveedorNoConfigurado si faltan credenciales
-     * @throws ErroresIA.FalloDelProveedor si el proveedor falla de forma no recuperable
-     * @throws ErroresIA.RespuestaInutilizable si responde algo que no cumple el esquema
+     * @throws co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado si faltan
+     *     credenciales
+     * @throws co.agentesecop.adapter.out.llm.error.FalloDelProveedor si el proveedor
+     *     falla
+     * @throws co.agentesecop.adapter.out.llm.error.RespuestaInutilizable si responde
+     *     algo que no cumple el esquema
      */
     <T> T estructurado(PeticionIA peticion, Class<T> tipo);
 

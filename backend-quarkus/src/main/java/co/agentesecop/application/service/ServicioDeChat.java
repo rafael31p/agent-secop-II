@@ -12,7 +12,14 @@ import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Consulta libre al agente experto. */
+/**
+ * Consulta libre al agente experto.
+ *
+ * <p>Es el único caso de uso sin {@code @Timeout}, y no por olvido: un presupuesto total no
+ * encaja con una conversación, donde una respuesta larga es legítima. Lo que no es legítimo
+ * es el silencio, y de eso se encarga {@code adapter.out.llm.PoliticaDeStreaming} —junto
+ * con la cota de conversaciones simultáneas—, que es donde vive la política del flujo.
+ */
 @ApplicationScoped
 public class ServicioDeChat implements ConversarConElAgente {
 

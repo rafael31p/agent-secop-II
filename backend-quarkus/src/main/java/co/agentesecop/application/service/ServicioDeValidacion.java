@@ -10,16 +10,18 @@ import co.agentesecop.domain.model.tender.RequisitoTecnico;
 import co.agentesecop.domain.shared.PeticionInvalida;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.eclipse.microprofile.faulttolerance.Timeout;
 
 /**
  * Valida una propuesta contra los requisitos del pliego.
  *
  * <p>Cuando la petición no trae requisitos estructurados, los extrae antes de validar. Lo
  * hace <strong>invocando el caso de uso de análisis por su interfaz</strong>, no llamando
- * a un método de sí mismo: así la composición es visible en la firma, y el punto 3.3 del
- * plan podrá ponerle un presupuesto de tiempo global a las dos llamadas encadenadas, que
- * son las que hacen de este el endpoint más caro.
+ * a un método de sí mismo: así la composición es visible en la firma, y el presupuesto de
+ * tiempo puede acotar las dos llamadas encadenadas, que son las que hacen de este el
+ * endpoint más caro.
  */
 @ApplicationScoped
 public class ServicioDeValidacion implements ValidarPropuesta {
@@ -36,7 +38,17 @@ public class ServicioDeValidacion implements ValidarPropuesta {
         this.analisis = analisis;
     }
 
+    /**
+     * El techo de la petición completa, no el de una llamada al modelo.
+     *
+     * <p>Es el único caso de uso que puede encadenar dos invocaciones —extraer requisitos
+     * y luego validar contra ellos—, y ahí el timeout por llamada no acota nada: con la
+     * configuración anterior podían sumar media hora de petición HTTP viva. 240 s por
+     * encima de los 120 s por llamada deja margen para las dos y garantiza que ninguna
+     * petición pueda vivir indefinidamente.
+     */
     @Override
+    @Timeout(value = 240_000, unit = ChronoUnit.MILLIS)
     public InformeDeCumplimiento validar(ComandoDeValidacion comando) {
         List<RequisitoTecnico> requisitos = requisitosDeReferencia(comando);
         return modelo.estructurado(

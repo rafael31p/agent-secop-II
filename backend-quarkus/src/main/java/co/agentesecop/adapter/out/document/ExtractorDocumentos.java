@@ -1,6 +1,7 @@
 package co.agentesecop.adapter.out.document;
 
 import co.agentesecop.domain.model.procurement.TextoDeDocumento;
+import co.agentesecop.domain.shared.Texto;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -8,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -99,13 +101,20 @@ public class ExtractorDocumentos {
                 try {
                     acumulado.append(extractor.getText(documento));
                 } catch (IOException e) {
-                    LOG.warnf("No se pudo extraer la página %d: %s", pagina, e.getMessage());
+                    // El mensaje lo produce PDFBox al leer un archivo que subió el usuario,
+                    // así que su contenido depende del archivo: se sanea antes de registrarlo.
+                    LOG.warnf("No se pudo extraer la página %d: %s",
+                            pagina, Texto.paraRegistro(e.getMessage(), 120));
                 }
             }
             return new TextoPdf(acumulado.toString(), paginas);
         } catch (IOException e) {
+            // Aquí sí viaja el mensaje de la biblioteca al usuario, y es la excepción
+            // consciente a la regla de no publicar texto ajeno: el archivo es suyo, y
+            // «documento cifrado» es justo lo que le dice qué hacer. Se acota y se sanea
+            // para que no pueda ser ni un vector de inyección ni un volcado enorme.
             throw new DocumentoNoSoportado(
-                    "No se pudo leer el PDF: " + e.getMessage()
+                    "No se pudo leer el PDF: " + Texto.paraRegistro(e.getMessage(), 120)
                             + ". Si está protegido con contraseña, quítala antes de subirlo.",
                     e);
         }
@@ -145,9 +154,24 @@ public class ExtractorDocumentos {
      * del aviso de que necesita OCR.
      */
     static boolean sinContenidoUtil(String texto) {
-        String sinMarcas = texto.replaceAll("(?m)^\\s*---\\s*Página\\s+\\d+\\s*---\\s*$", "");
-        return sinMarcas.isBlank();
+        return MARCA_DE_PAGINA.matcher(texto).replaceAll("").isBlank();
     }
+
+    /**
+     * Las marcas de página, con el espacio acotado a espacios y tabuladores.
+     *
+     * <p>La versión anterior usaba {@code \\s}, que <b>en Java incluye el salto de
+     * línea</b>. Con {@code (?m)^\\s*...\\s*$} el patrón dejaba de estar acotado por
+     * línea y podía cruzar varias, así que el retroceso del motor crecía de forma
+     * cuadrática sobre un texto que elige quien sube el documento: un PDF con cientos
+     * de miles de espacios y saltos bastaba para dejar el hilo dando vueltas.
+     *
+     * <p>Con {@code [ \\t]} el patrón hace lo que dice —una marca ocupa una línea— y su
+     * coste vuelve a ser lineal. El tope de dígitos es la otra mitad: sin él, una tira
+     * de un millón de cifras seguiría siendo un ancla para el retroceso.
+     */
+    private static final Pattern MARCA_DE_PAGINA = Pattern.compile(
+            "(?m)^[ \\t]*---[ \\t]*Página[ \\t]+\\d{1,6}[ \\t]*---[ \\t]*$");
 
     /** Colapsa las líneas en blanco repetidas para no gastar tokens en espacio vacío. */
     static String limpiar(String texto) {

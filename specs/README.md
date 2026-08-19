@@ -43,6 +43,8 @@ implementar.
 | [SPEC-BE-05](backend/SPEC-BE-05-observabilidad.md) | Salud, métricas, trazas y correlación | 🟠 Media |
 | [SPEC-BE-06](backend/SPEC-BE-06-seguridad-y-limites.md) | Autenticación, límites de consumo y fuga de datos | 🔴 Alta |
 | [SPEC-BE-07](backend/SPEC-BE-07-idioma-y-nomenclatura.md) | Migración del código a inglés | 🟡 Baja |
+| [SPEC-BE-08](backend/SPEC-BE-08-concurrencia.md) | Concurrencia: hilos, contención y ciclo de vida de recursos compartidos | 🔴 Alta |
+| [SPEC-BE-09](backend/SPEC-BE-09-formato-de-entrada-toon.md) | Formato del material que se le envía al modelo (TOON) | 🟠 Media |
 
 ### Especificaciones técnicas — frontend
 
@@ -54,12 +56,21 @@ implementar.
 | [SPEC-FE-04](frontend/SPEC-FE-04-sistema-de-componentes.md) | Sistema de componentes reutilizables | 🟠 Media |
 | [SPEC-FE-05](frontend/SPEC-FE-05-idioma-y-nomenclatura.md) | Migración del código a inglés y contrato tipado generado | 🟡 Baja |
 
+### Especificaciones de seguridad y calidad
+
+| Spec | Título | Prioridad |
+|---|---|---|
+| [SPEC-SEC-01](seguridad/SPEC-SEC-01-auditoria-de-seguridad.md) | Auditoría de seguridad: inyección, entrada no confiable y superficie expuesta | 🔴 Alta |
+| [SPEC-QA-01](calidad/SPEC-QA-01-pruebas-de-integracion.md) | Pruebas de integración: backend y frontend | 🟠 Media |
+| [SPEC-QA-02](calidad/SPEC-QA-02-pruebas-de-carga.md) | Pruebas de carga y rendimiento: backend y frontend | 🟠 Media |
+
 ### Especificaciones de documentación
 
 | Spec | Título | Prioridad |
 |---|---|---|
 | [SPEC-DOC-01](documentacion/SPEC-DOC-01-documentacion-tecnica.md) | Documentación técnica, ADR y contrato OpenAPI como fuente única | 🟠 Media |
 | [SPEC-DOC-02](documentacion/SPEC-DOC-02-diagramas.md) | Diagramas: C4, componentes, secuencia, clases, estados y despliegue | 🟠 Media |
+| [SPEC-DOC-03](documentacion/SPEC-DOC-03-flujo-de-trabajo-git.md) | Flujo de trabajo con GitFlow | 🔴 Alta |
 
 ### Especificaciones no técnicas
 
@@ -83,8 +94,9 @@ Cada spec tiene la misma estructura:
 6. **Criterios de aceptación** — verificables, no opinables.
 7. **Riesgos y fuera de alcance** — lo que puede salir mal y lo que no se toca.
 
-**Estados:** `Propuesta` → `Aceptada` → `Implementada` → `Sustituida`. Todas nacen como
-`Propuesta`; nadie las ha aprobado todavía.
+**Estados:** `Propuesta` → `Aceptada` → `Implementada` → `Sustituida`. Casi todas siguen
+en `Propuesta`. Van por delante las que ya se ejecutaron: SPEC-BE-01 (fase 2, implementada),
+SPEC-BE-06 (fase 1, implementada en su mayor parte) y SPEC-DOC-03 (aceptada y montada).
 
 **Trazabilidad:** cada hallazgo del diagnóstico tiene un identificador (`BE-C1`, `FE-A5`,
 `NT-2`…) que aparece en la spec que lo cierra. Ningún hallazgo debería quedar huérfano; el

@@ -6,6 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import co.agentesecop.adapter.out.llm.error.CuotaAgotada;
+import co.agentesecop.adapter.out.llm.error.FalloTransitorio;
+import co.agentesecop.adapter.out.llm.error.ProveedorNoConfigurado;
+import co.agentesecop.adapter.out.llm.error.RespuestaInutilizable;
+import co.agentesecop.adapter.out.llm.error.ServicioDelProveedorCaido;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -62,7 +67,7 @@ class ProveedorLangChain4jTest {
     /** Doble mínimo: solo necesita heredar la traducción, no hablar con ningún servicio. */
     private static final class ProveedorDePrueba extends ProveedorLangChain4j {
         ProveedorDePrueba() {
-            super(null, null);
+            super(null, null, new CierreDiferido(java.time.Duration.ofMinutes(3)));
         }
 
         @Override
@@ -103,35 +108,68 @@ class ProveedorLangChain4jTest {
 
     private final ProveedorDePrueba proveedor = new ProveedorDePrueba();
 
-    @ParameterizedTest(name = "{0} -> HTTP {1}")
+    /**
+     * Se afirma sobre el <b>tipo</b> y no sobre un código HTTP, y el cambio no es
+     * cosmético: el tipo es lo que decide la política. {@code @Retry(retryOn = ...)} y
+     * {@code @CircuitBreaker(failOn = ...)} razonan sobre clases, así que clasificar mal
+     * aquí significa reintentar una clave inválida —tres llamadas facturables que nunca
+     * van a funcionar— o rendirse ante un 503 que se habría resuelto solo. El código HTTP
+     * es ahora consecuencia, y lo elige el mapeador de la capa REST.
+     */
+    @ParameterizedTest(name = "{0} -> {1}")
     @CsvSource({
-        "'Invalid API key provided',                401",
-        "'401 Unauthorized',                        401",
-        "'You exceeded your current quota',         429",
-        "'429 rate limit exceeded',                 429",
-        "'RESOURCE_EXHAUSTED',                      429",
-        "'404 NOT_FOUND model does not exist',      404",
-        "'This model is no longer available',       404",
-        "'503 UNAVAILABLE high demand',             502",
-        "'500 internal error',                      502",
-        "'Read timed out',                          502"
+        "'Invalid API key provided',                CredencialInvalida",
+        "'401 Unauthorized',                        CredencialInvalida",
+        "'You exceeded your current quota',         CuotaAgotada",
+        "'429 rate limit exceeded',                 CuotaAgotada",
+        "'RESOURCE_EXHAUSTED',                      CuotaAgotada",
+        "'404 NOT_FOUND model does not exist',      ModeloDesconocido",
+        "'This model is no longer available',       ModeloDesconocido",
+        "'503 UNAVAILABLE high demand',             ServicioDelProveedorCaido",
+        "'500 internal error',                      ServicioDelProveedorCaido",
+        "'Read timed out',                          ServicioDelProveedorCaido"
     })
-    @DisplayName("Clasifica los errores del proveedor por su código correcto")
-    void clasificaErrores(String mensaje, int esperado) {
+    @DisplayName("Clasifica los errores del proveedor por su tipo, que es lo que decide")
+    void clasificaErrores(String mensaje, String tipoEsperado) {
         var traducido = proveedor.traducir(new RuntimeException(mensaje), "modelo-x");
 
-        assertEquals(esperado, traducido.estadoHttp(),
+        assertEquals(tipoEsperado, traducido.getClass().getSimpleName(),
                 "Mal clasificado '%s': %s".formatted(mensaje, traducido.getMessage()));
     }
 
+    /**
+     * Y la consecuencia que de verdad importa, dicha aparte: qué se reintenta.
+     *
+     * <p>Es la afirmación que la versión anterior no podía hacer. Con la clasificación
+     * expresada como código HTTP, saber si algo se reintentaba exigía leer un {@code if}
+     * en otra clase; ahora es una pregunta sobre el tipo, y la responde el compilador.
+     */
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({
+        "'429 rate limit exceeded',            true",
+        "'503 UNAVAILABLE',                    true",
+        "'algo raro pasó',                     true",
+        "'401 Unauthorized',                   false",
+        "'404 NOT_FOUND',                      false",
+        "'Response blocked by safety filter',  false"
+    })
+    @DisplayName("Solo lo transitorio se reintenta; lo demás falla a la primera")
+    void loQueSeReintenta(String mensaje, boolean reintentable) {
+        var traducido = proveedor.traducir(new RuntimeException(mensaje), "modelo-x");
+
+        assertEquals(reintentable, traducido instanceof FalloTransitorio,
+                "'%s' quedó como %s".formatted(mensaje, traducido.getClass().getSimpleName()));
+    }
+
     @Test
-    @DisplayName("Los filtros de contenido dan 422, no un fallo de proveedor")
+    @DisplayName("Los filtros de contenido no son un fallo del proveedor")
     void filtroDeContenido() {
         var traducido = proveedor.traducir(
                 new RuntimeException("Response blocked by safety filter"), "modelo-x");
 
-        assertEquals(422, traducido.estadoHttp());
-        assertInstanceOf(ErroresIA.RespuestaInutilizable.class, traducido);
+        // Responder algo inservible no es lo mismo que no responder: reintentar un filtro
+        // de contenido con el mismo material da exactamente el mismo resultado.
+        assertInstanceOf(RespuestaInutilizable.class, traducido);
     }
 
     @Test
@@ -141,13 +179,13 @@ class ProveedorLangChain4jTest {
                 new IllegalStateException("wrapper",
                         new RuntimeException("429 quota exceeded")));
 
-        assertEquals(429, proveedor.traducir(anidado, "modelo-x").estadoHttp());
+        assertInstanceOf(CuotaAgotada.class, proveedor.traducir(anidado, "modelo-x"));
     }
 
     @Test
     @DisplayName("Un error ya traducido no se vuelve a envolver")
     void noReenvuelve() {
-        var original = new ErroresIA.ProveedorNoConfigurado("falta la clave");
+        var original = new ProveedorNoConfigurado("falta la clave");
 
         assertEquals(original, proveedor.traducir(original, "modelo-x"));
     }
@@ -164,11 +202,11 @@ class ProveedorLangChain4jTest {
     }
 
     @Test
-    @DisplayName("Un error desconocido cae en 502, no en 500 opaco")
+    @DisplayName("Un error desconocido se trata como caída temporal, no como 500 opaco")
     void errorDesconocido() {
         var traducido = proveedor.traducir(new RuntimeException("algo raro pasó"), "modelo-x");
 
-        assertEquals(502, traducido.estadoHttp());
+        assertInstanceOf(ServicioDelProveedorCaido.class, traducido);
         assertTrue(traducido.getMessage().contains("Proveedor de prueba"),
                 "El mensaje debe decir qué proveedor falló: " + traducido.getMessage());
     }
@@ -217,7 +255,7 @@ class ProveedorLangChain4jTest {
 
         var traducido = proveedor.traducir(conCredencial, "modelo-x");
 
-        assertEquals(429, traducido.estadoHttp());
+        assertInstanceOf(CuotaAgotada.class, traducido);
         assertFalse(traducido.getMessage().contains("AIzaSyTEST123"),
                 "Clasificar bien no basta si el mensaje se construye con el texto ajeno: "
                         + traducido.getMessage());
